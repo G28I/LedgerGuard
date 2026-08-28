@@ -9,3 +9,196 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ==========================================
+// Enums
+// ==========================================
+
+enum RunStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MatchMethod {
+  DETERMINISTIC
+  FUZZY
+  AI
+}
+
+enum ResultStatus {
+  MATCHED
+  MISMATCH
+  UNRESOLVED
+}
+
+enum ExceptionType {
+  AMOUNT_MISMATCH
+  DATE_MISMATCH
+  MISSING_RECORD
+  DUPLICATE
+  AMBIGUOUS_MATCH
+  AI_UNAVAILABLE
+  AI_INVALID_RESPONSE
+  INSUFFICIENT_EVIDENCE
+}
+
+enum ExceptionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ==========================================
+// Source Financial Records (Append-Only)
+// ==========================================
+
+model Invoice {
+  id                String   @id @default(cuid())
+  invoiceNumber     String   @unique
+  vendorName        String
+  vendorNormalized  String?
+  amountCents       Int      // Stored as integer cents (up to ±$21,474,836.47)
+  currency          String   @default("USD")
+  issueDate         DateTime
+  dueDate           DateTime?
+  status            String   @default("OPEN")
+  rawMetadata       Json?
+  groundTruthId     String?  // Isolated ground truth reference for offline benchmark evaluation only
+  createdAt         DateTime @default(now())
+
+  // Relations
+  results           ReconciliationResult[]
+
+  @@index([vendorName])
+  @@index([issueDate])
+  @@index([amountCents])
+}
+
+model BankTransaction {
+  id                    String   @id @default(cuid())
+  transactionRef        String   @unique
+  description           String
+  descriptionNormalized String?
+  amountCents           Int      // Stored as integer cents
+  currency              String   @default("USD")
+  transactionDate       DateTime
+  accountNumber         String?
+  rawMetadata           Json?
+  groundTruthId         String?  // Isolated ground truth reference
+  createdAt             DateTime @default(now())
+
+  // Relations
+  results               ReconciliationResult[]
+
+  @@index([transactionDate])
+  @@index([amountCents])
+}
+
+model LedgerEntry {
+  id            String   @id @default(cuid())
+  entryRef      String   @unique
+  accountCode   String
+  description   String
+  amountCents   Int      // Stored as integer cents
+  currency      String   @default("USD")
+  postingDate   DateTime
+  rawMetadata   Json?
+  groundTruthId String?  // Isolated ground truth reference
+  createdAt     DateTime @default(now())
+
+  // Relations
+  results       ReconciliationResult[]
+
+  @@index([accountCode])
+  @@index([postingDate])
+  @@index([amountCents])
+}
+
+// ==========================================
+// Reconciliation Run & Decision History
+// ==========================================
+
+model ReconciliationRun {
+  id              String      @id @default(cuid())
+  runNumber       String      @unique
+  batchName       String
+  totalRecords    Int         @default(0)
+  matchedCount    Int         @default(0)
+  unresolvedCount Int         @default(0)
+  exceptionCount  Int         @default(0)
+  aiCallCount     Int         @default(0)
+  accuracy        Float?
+  resolutionRate  Float?
+  durationMs      Int?
+  status          RunStatus   @default(PENDING)
+  startedAt       DateTime    @default(now())
+  completedAt     DateTime?
+
+  // Relations
+  results         ReconciliationResult[]
+  exceptions      Exception[]
+
+  @@index([status])
+  @@index([startedAt])
+}
+
+model ReconciliationResult {
+  id                String       @id @default(cuid())
+  runId             String
+  run               ReconciliationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  
+  invoiceId         String?
+  invoice           Invoice?     @relation(fields: [invoiceId], references: [id])
+  
+  bankTransactionId String?
+  bankTransaction   BankTransaction? @relation(fields: [bankTransactionId], references: [id])
+  
+  ledgerEntryId     String?
+  ledgerEntry       LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
+  
+  status            ResultStatus
+  method            MatchMethod
+  aiUsed            Boolean      @default(false)
+  confidence        Float?       // Score between 0.0 and 1.0
+  amountDeltaCents  Int          @default(0)
+  reasonCode        String       // e.g., EXACT_REF_MATCH, FUZZY_VENDOR_MATCH, AI_AMBIGUOUS_RESOLVED
+  explanation       String       // Human-readable explanation
+  evidenceJson      Json?        // Full evidence package audit trail
+  aiMetadataJson    Json?        // Model response/prompt metadata
+  createdAt         DateTime     @default(now())
+
+  // Relations (1-to-many: one result can produce multiple exceptions)
+  exceptions        Exception[]
+
+  @@index([runId])
+  @@index([status])
+  @@index([method])
+}
+
+model Exception {
+  id              String            @id @default(cuid())
+  runId           String
+  run             ReconciliationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  
+  resultId        String?           // Non-unique link: multiple exceptions can relate to one result
+  result          ReconciliationResult? @relation(fields: [resultId], references: [id], onDelete: SetNull)
+  
+  type            ExceptionType
+  priority        ExceptionPriority @default(MEDIUM)
+  reason          String
+  expectedValue   String?
+  observedValue   String?
+  resolved        Boolean           @default(false)
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  resolutionNotes String?
+  createdAt       DateTime          @default(now())
+
+  @@index([runId])
+  @@index([resultId])
+  @@index([type])
+  @@index([resolved])
+}

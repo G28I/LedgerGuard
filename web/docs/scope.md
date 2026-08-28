@@ -49,7 +49,7 @@ If a sketch contradicts a written product decision here, stop and resolve the co
 | -- | ------------------------------------------ | ---------- | ----------- |
 | 1  | Foundation and project setup               | Foundation | completed   |
 | 2  | Coding standards & tooling                 | Foundation | completed   |
-| 3  | Financial data model                       | Foundation | not started |
+| 3  | Financial data model                       | Foundation | completed   |
 | 4  | Reconciliation domain model & rules        | Foundation | not started |
 | 5  | Synthetic benchmark generator              | Foundation | not started |
 | 6  | Thin end-to-end reconciliation slice       | Slice 1    | not started |
@@ -164,57 +164,44 @@ Do not overwrite source records to make them reconcile.
 
 Do not store the entire financial domain as one generic JSON object.
 
-### Core entities
+### Final Prisma / PostgreSQL Schema Decisions
 
-```text
-Invoice
-BankTransaction
-LedgerEntry
+1. **Monetary Representation & Numeric Range**:
+   - Amounts are stored as integer `amountCents` (`Int` in Prisma/PostgreSQL, supported signed 32-bit range: -2,147,483,648 to 2,147,483,647 cents, corresponding to ±$21,474,836.47).
+   - Rationale: Standard 32-bit `Int` easily covers synthetic financial batch transactions up to $21.4M with exact 0-rounding integer arithmetic across Node.js, Prisma, and PostgreSQL.
+   - `currency` is stored as an ISO string (default `"USD"`).
 
-ReconciliationRun
-    ├── ReconciliationResult
-    └── Exception
-```
+2. **Source Financial Entities (Append-Only Data)**:
+   - `Invoice`, `BankTransaction`, and `LedgerEntry` are append-only source records. `updatedAt` timestamps are removed to enforce immutability of ingested source data.
+   - `Invoice`: `id`, `invoiceNumber`, `vendorName`, `vendorNormalized`, `amountCents`, `currency`, `issueDate`, `dueDate`, `status`, `groundTruthId`, `createdAt`.
+   - `BankTransaction`: `id`, `transactionRef`, `description`, `descriptionNormalized`, `amountCents`, `currency`, `transactionDate`, `accountNumber`, `groundTruthId`, `createdAt`.
+   - `LedgerEntry`: `id`, `entryRef`, `accountCode`, `description`, `amountCents`, `currency`, `postingDate`, `groundTruthId`, `createdAt`.
 
-Potential result methods:
+3. **Reconciliation Run, Results & Non-Unique Exceptions**:
+   - `ReconciliationRun`: Tracks run status (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`), batch metrics (`totalRecords`, `matchedCount`, `unresolvedCount`, `exceptionCount`, `aiCallCount`, `accuracy`, `resolutionRate`, `durationMs`), `startedAt`, `completedAt`.
+   - `ReconciliationResult`: Connects source records (`invoiceId`, `bankTransactionId`, `ledgerEntryId`), decision status (`MATCHED`, `MISMATCH`, `UNRESOLVED`), matching method (`DETERMINISTIC`, `FUZZY`, `AI`), `aiUsed` boolean, `confidence` score, `amountDeltaCents`, `reasonCode`, `explanation`, `evidenceJson`, `aiMetadataJson`.
+   - `Exception`: Linked to a run and optional `resultId` (**non-unique**, allowing one reconciliation result to produce multiple exception records). Includes `type`, `priority`, `reason`, `expectedValue`, `observedValue`, `resolved`, `resolvedBy`, `resolvedAt`, `resolutionNotes`, `createdAt`.
 
-```text
-DETERMINISTIC
-FUZZY
-AI
-```
+4. **Supporting Enums**:
+   - `RunStatus`: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`
+   - `MatchMethod`: `DETERMINISTIC`, `FUZZY`, `AI`
+   - `ResultStatus`: `MATCHED`, `MISMATCH`, `UNRESOLVED`
+   - `ExceptionType`: `AMOUNT_MISMATCH`, `DATE_MISMATCH`, `MISSING_RECORD`, `DUPLICATE`, `AMBIGUOUS_MATCH`, `AI_UNAVAILABLE`, `AI_INVALID_RESPONSE`, `INSUFFICIENT_EVIDENCE`
+   - `ExceptionPriority`: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
 
-Potential result statuses:
-
-```text
-MATCHED
-MISMATCH
-UNRESOLVED
-```
-
-Potential exception types:
-
-```text
-AMOUNT_MISMATCH
-DATE_MISMATCH
-MISSING_RECORD
-DUPLICATE
-AMBIGUOUS_MATCH
-AI_UNAVAILABLE
-AI_INVALID_RESPONSE
-INSUFFICIENT_EVIDENCE
-```
-
-The final schema should reflect the actual domain decisions made during implementation rather than blindly copying this outline.
+5. **Benchmark Ground Truth Isolation**:
+   - `groundTruthId` is stored strictly for offline synthetic benchmark evaluation. The runtime reconciliation engine and decision paths are isolated and cannot consume `groundTruthId`.
 
 ### Checklist
 
-* [ ] Decide the concrete Prisma schema
-* [ ] Document important schema tradeoffs
-* [ ] Build the schema
-* [ ] Run the first migration
-* [ ] Seed representative records
-* [ ] Verify reads and writes
+* [x] Finalize the Prisma schema with the adjustments above in `prisma/schema.prisma`
+* [x] Generate Prisma Client (`npx prisma generate`)
+* [x] Apply schema to PostgreSQL database (`npx prisma db push`)
+* [x] Create DB repository utilities in `features/db/`
+* [x] Create representative seed script in `prisma/seed.ts`
+* [x] Verify source records are preserved as append-only
+* [x] Verify reconciliation runs can reference results and multiple exceptions per result
+* [x] Verify benchmark ground truth is isolated from decision logic
 
 ---
 
