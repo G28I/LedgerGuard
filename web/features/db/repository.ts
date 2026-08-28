@@ -1,9 +1,12 @@
-import { prisma } from './index';
+import { prisma } from '@/lib/prisma';
 import { 
   Prisma,
   type Invoice, 
   type BankTransaction, 
   type LedgerEntry, 
+  type ReconciliationRun,
+  type ReconciliationResult,
+  type Exception,
   type RunStatus,
   type MatchMethod,
   type ResultStatus,
@@ -11,9 +14,9 @@ import {
   type ExceptionPriority
 } from '@prisma/client';
 
-export type CreateInvoiceInput = Prisma.InvoiceCreateManyInput;
-export type CreateBankTransactionInput = Prisma.BankTransactionCreateManyInput;
-export type CreateLedgerEntryInput = Prisma.LedgerEntryCreateManyInput;
+export type CreateInvoiceInput = Prisma.InvoiceCreateInput;
+export type CreateBankTransactionInput = Prisma.BankTransactionCreateInput;
+export type CreateLedgerEntryInput = Prisma.LedgerEntryCreateInput;
 
 /**
  * DB Repository Layer
@@ -21,16 +24,28 @@ export type CreateLedgerEntryInput = Prisma.LedgerEntryCreateManyInput;
  */
 export const dbRepository = {
   // Source Record Creators (Append-Only)
-  async createInvoices(inputs: CreateInvoiceInput[]) {
-    return prisma.invoice.createMany({ data: inputs, skipDuplicates: true });
+  async createInvoice(data: CreateInvoiceInput): Promise<Invoice> {
+    return prisma.invoice.create({ data });
   },
 
-  async createBankTransactions(inputs: CreateBankTransactionInput[]) {
-    return prisma.bankTransaction.createMany({ data: inputs, skipDuplicates: true });
+  async createInvoices(data: Prisma.InvoiceCreateManyInput[]) {
+    return prisma.invoice.createMany({ data, skipDuplicates: true });
   },
 
-  async createLedgerEntries(inputs: CreateLedgerEntryInput[]) {
-    return prisma.ledgerEntry.createMany({ data: inputs, skipDuplicates: true });
+  async createBankTransaction(data: CreateBankTransactionInput): Promise<BankTransaction> {
+    return prisma.bankTransaction.create({ data });
+  },
+
+  async createBankTransactions(data: Prisma.BankTransactionCreateManyInput[]) {
+    return prisma.bankTransaction.createMany({ data, skipDuplicates: true });
+  },
+
+  async createLedgerEntry(data: CreateLedgerEntryInput): Promise<LedgerEntry> {
+    return prisma.ledgerEntry.create({ data });
+  },
+
+  async createLedgerEntries(data: Prisma.LedgerEntryCreateManyInput[]) {
+    return prisma.ledgerEntry.createMany({ data, skipDuplicates: true });
   },
 
   // Source Record Readers
@@ -52,7 +67,7 @@ export const dbRepository = {
     batchName: string;
     totalRecords: number;
     status?: RunStatus;
-  }) {
+  }): Promise<ReconciliationRun> {
     return prisma.reconciliationRun.create({ data });
   },
 
@@ -70,7 +85,7 @@ export const dbRepository = {
     explanation: string;
     evidenceJson?: Prisma.InputJsonValue;
     aiMetadataJson?: Prisma.InputJsonValue;
-  }) {
+  }): Promise<ReconciliationResult> {
     return prisma.reconciliationResult.create({
       data: {
         runId: data.runId,
@@ -84,8 +99,8 @@ export const dbRepository = {
         amountDeltaCents: data.amountDeltaCents ?? 0,
         reasonCode: data.reasonCode,
         explanation: data.explanation,
-        evidenceJson: data.evidenceJson ?? Prisma.JsonNull,
-        aiMetadataJson: data.aiMetadataJson ?? Prisma.JsonNull,
+        evidenceJson: data.evidenceJson !== undefined ? data.evidenceJson : Prisma.DbNull,
+        aiMetadataJson: data.aiMetadataJson !== undefined ? data.aiMetadataJson : Prisma.DbNull,
       },
     });
   },
@@ -98,7 +113,7 @@ export const dbRepository = {
     reason: string;
     expectedValue?: string;
     observedValue?: string;
-  }) {
+  }): Promise<Exception> {
     return prisma.exception.create({ data });
   },
 
@@ -114,7 +129,7 @@ export const dbRepository = {
       durationMs: number;
       status: RunStatus;
     }
-  ) {
+  ): Promise<ReconciliationRun> {
     return prisma.reconciliationRun.update({
       where: { id: runId },
       data: {

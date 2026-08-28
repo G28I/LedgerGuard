@@ -13,76 +13,66 @@ async function main() {
   await prisma.bankTransaction.deleteMany({});
   await prisma.ledgerEntry.deleteMany({});
 
-  // 2. Insert representative append-only source records (monetary values in integer cents)
+  // 2. Insert representative append-only source records via repository layer
   console.log('📦 Inserting source records...');
   
-  const invoice1 = await prisma.invoice.create({
-    data: {
-      invoiceNumber: 'INV-2026-001',
-      vendorName: 'Acme Corporation Ltd.',
-      vendorNormalized: 'acme corp',
-      amountCents: 150000, // $1,500.00
-      currency: 'USD',
-      issueDate: new Date('2026-08-01'),
-      dueDate: new Date('2026-08-31'),
-      status: 'OPEN',
-      groundTruthId: 'GT-PAIR-001', // Benchmark ground truth
-    },
+  const invoice1 = await dbRepository.createInvoice({
+    invoiceNumber: 'INV-2026-001',
+    vendorName: 'Acme Corporation Ltd.',
+    vendorNormalized: 'acme corp',
+    amountCents: 150000, // $1,500.00
+    currency: 'USD',
+    issueDate: new Date('2026-08-01'),
+    dueDate: new Date('2026-08-31'),
+    status: 'OPEN',
+    groundTruthId: 'GT-PAIR-001', // Benchmark ground truth reference
   });
 
-  const invoice2 = await prisma.invoice.create({
-    data: {
-      invoiceNumber: 'INV-2026-002',
-      vendorName: 'Starlight Logistics Inc.',
-      vendorNormalized: 'starlight logistics',
-      amountCents: 85075, // $850.75
-      currency: 'USD',
-      issueDate: new Date('2026-08-05'),
-      dueDate: new Date('2026-09-05'),
-      status: 'OPEN',
-      groundTruthId: 'GT-PAIR-002',
-    },
+  const invoice2 = await dbRepository.createInvoice({
+    invoiceNumber: 'INV-2026-002',
+    vendorName: 'Starlight Logistics Inc.',
+    vendorNormalized: 'starlight logistics',
+    amountCents: 85075, // $850.75
+    currency: 'USD',
+    issueDate: new Date('2026-08-05'),
+    dueDate: new Date('2026-09-05'),
+    status: 'OPEN',
+    groundTruthId: 'GT-PAIR-002',
   });
 
-  const bankTx1 = await prisma.bankTransaction.create({
-    data: {
-      transactionRef: 'BANK-TX-9901',
-      description: 'WIRE OUT - ACME CORP',
-      descriptionNormalized: 'acme corp',
-      amountCents: 150000, // $1,500.00
-      currency: 'USD',
-      transactionDate: new Date('2026-08-15'),
-      accountNumber: 'ACC-7788',
-      groundTruthId: 'GT-PAIR-001',
-    },
+  const bankTx1 = await dbRepository.createBankTransaction({
+    transactionRef: 'BANK-TX-9901',
+    description: 'WIRE OUT - ACME CORP',
+    descriptionNormalized: 'acme corp',
+    amountCents: 150000, // $1,500.00
+    currency: 'USD',
+    transactionDate: new Date('2026-08-15'),
+    accountNumber: 'ACC-7788',
+    groundTruthId: 'GT-PAIR-001',
   });
 
-  const bankTx2 = await prisma.bankTransaction.create({
-    data: {
-      transactionRef: 'BANK-TX-9902',
-      description: 'ACH DEBIT - STARLIGHT LOGISTICS',
-      descriptionNormalized: 'starlight logistics',
-      amountCents: 80000, // $800.00 (DISCREPANCY: expected $850.75)
-      currency: 'USD',
-      transactionDate: new Date('2026-08-16'),
-      accountNumber: 'ACC-7788',
-      groundTruthId: 'GT-PAIR-002',
-    },
+  const bankTx2 = await dbRepository.createBankTransaction({
+    transactionRef: 'BANK-TX-9902',
+    description: 'ACH DEBIT - STARLIGHT LOGISTICS',
+    descriptionNormalized: 'starlight logistics',
+    amountCents: 80000, // $800.00 (DISCREPANCY: expected $850.75)
+    currency: 'USD',
+    transactionDate: new Date('2026-08-16'),
+    accountNumber: 'ACC-7788',
+    groundTruthId: 'GT-PAIR-002',
   });
 
-  const ledgerEntry1 = await prisma.ledgerEntry.create({
-    data: {
-      entryRef: 'LEG-1001',
-      accountCode: 'AP-500',
-      description: 'Acme Payment Ledger Entry',
-      amountCents: 150000,
-      currency: 'USD',
-      postingDate: new Date('2026-08-15'),
-      groundTruthId: 'GT-PAIR-001',
-    },
+  await dbRepository.createLedgerEntry({
+    entryRef: 'LEG-1001',
+    accountCode: 'AP-500',
+    description: 'Acme Payment Ledger Entry',
+    amountCents: 150000,
+    currency: 'USD',
+    postingDate: new Date('2026-08-15'),
+    groundTruthId: 'GT-PAIR-001',
   });
 
-  console.log(`✓ Inserted 2 Invoices, 2 Bank Transactions, 1 Ledger Entry.`);
+  console.log('✓ Inserted 2 Invoices, 2 Bank Transactions, 1 Ledger Entry.');
 
   // 3. Create a Reconciliation Run
   console.log('🔄 Creating Reconciliation Run...');
@@ -98,14 +88,13 @@ async function main() {
     runId: run.id,
     invoiceId: invoice1.id,
     bankTransactionId: bankTx1.id,
-    ledgerEntryId: ledgerEntry1.id,
     status: ResultStatus.MATCHED,
     method: MatchMethod.DETERMINISTIC,
     aiUsed: false,
     confidence: 1.0,
     amountDeltaCents: 0,
     reasonCode: 'EXACT_REF_AND_AMOUNT_MATCH',
-    explanation: 'Exact reference, vendor identity, and amount match across Invoice, Bank, and Ledger.',
+    explanation: 'Exact reference, vendor identity, and amount match across Invoice and Bank Transaction.',
     evidenceJson: {
       invoiceRef: invoice1.invoiceNumber,
       bankRef: bankTx1.transactionRef,
@@ -113,7 +102,7 @@ async function main() {
     },
   });
 
-  // 5. Record an UNRESOLVED result with MULTIPLE Exceptions per result (Testing Non-Unique Exception.resultId)
+  // 5. Record an UNRESOLVED result with MULTIPLE Exceptions per result
   const result2 = await dbRepository.recordResult({
     runId: run.id,
     invoiceId: invoice2.id,
