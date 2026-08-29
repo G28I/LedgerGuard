@@ -51,7 +51,7 @@ If a sketch contradicts a written product decision here, stop and resolve the co
 | 2  | Coding standards & tooling                 | Foundation | completed   |
 | 3  | Financial data model                       | Foundation | completed   |
 | 4  | Reconciliation domain model & rules        | Foundation | completed   |
-| 5  | Synthetic benchmark generator              | Foundation | not started |
+| 5  | Synthetic benchmark generator              | Foundation | completed   |
 | 6  | Thin end-to-end reconciliation slice       | Slice 1    | not started |
 | 7  | AI ambiguity resolver                      | Slice 2    | not started |
 | 8  | Reconciliation dashboard & exception queue | Slice 3    | not started |
@@ -343,14 +343,14 @@ The synthetic benchmark generator provides reproducible multi-source financial d
 
 ### Checklist
 
-* [ ] Define benchmark data types and ground truth contracts in `features/benchmark/types.ts`
-* [ ] Implement reproducible seeded Faker generator in `features/synthetic/generator.ts`
-* [ ] Implement scenario distributions (Exact, Variation, Amount Mismatch, Date Mismatch, Missing, Duplicate, Ambiguous)
-* [ ] Implement adversarial cases (Lookalike vendors, duplicate memos, garbage descriptions)
-* [ ] Enforce strict ground truth isolation from runtime reconciliation engine
-* [ ] Export synthetic generator API in `features/synthetic/index.ts`
-* [ ] Generate 50-record initial dataset and 200-record primary benchmark dataset
-* [ ] Verify generator seed reproducibility and ground truth integrity
+* [x] Define benchmark data types and ground truth contracts in `features/benchmark/types.ts`
+* [x] Implement reproducible seeded Faker generator in `features/synthetic/generator.ts`
+* [x] Implement scenario distributions (Exact, Variation, Amount Mismatch, Date Mismatch, Missing, Duplicate, Ambiguous)
+* [x] Implement adversarial cases (Lookalike vendors, duplicate memos, garbage descriptions)
+* [x] Enforce strict ground truth isolation from runtime reconciliation engine
+* [x] Export synthetic generator API in `features/synthetic/index.ts`
+* [x] Generate 50-record initial dataset and 200-record primary benchmark dataset
+* [x] Verify generator seed reproducibility and ground truth integrity
 
 ---
 

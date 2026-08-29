@@ -1,5 +1,10 @@
 /**
- * Evaluation & Benchmark Domain
- * Metrics calculation (precision, recall, F1, resolution rate, throughput).
+ * Benchmark & Evaluation Feature Domain
+ * Benchmark dataset scoring, metrics calculation, and ground truth definitions.
  */
-export const BENCHMARK_FEATURE_VERSION = '1.0.0';
+export type {
+  BenchmarkScenarioType,
+  GroundTruthLabel,
+  SyntheticBatchDataset,
+  BenchmarkScoreReport,
+} from './types';
