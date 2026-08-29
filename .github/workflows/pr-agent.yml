@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Qodo PR-Agent Code Review
-        uses: CodiumAI/pr-agent-action@v0.22
+        uses: CodiumAI/pr-agent-action@main
         env:
           OPENAI_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
