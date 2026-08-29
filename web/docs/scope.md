@@ -429,82 +429,103 @@ Next.js API Route & Response Contract (app/api/reconciliation/run/route.ts)
 
 ---
 
-# Slice 2: AI ambiguity resolver
-
 ## 7. OpenRouter AI resolver
 
-AI enters the system only after deterministic reconciliation is working.
-
-The AI resolver exists to interpret genuinely ambiguous evidence, not to replace the rule engine.
-
-OpenRouter calls should be isolated behind a small interface.
-
-The input should contain only the relevant evidence needed for that decision.
-
-The output must be structured and validated.
-
-Example conceptual output:
-
-```json
-{
-  "decision": "MATCH",
-  "confidence": 0.92,
-  "reason": "The candidate matches the vendor identity, amount, and transaction timing."
-}
-```
-
-The application must reject responses that do not conform to the expected schema.
-
-Model confidence is a decision signal, not a guaranteed statistical probability.
-
-Thresholds should be tuned against the benchmark and documented.
-
-### AI decision policy
-
-The initial policy may use a structure such as:
+The AI Ambiguity Resolver sits strictly downstream of deterministic reconciliation. It evaluates only records marked `UNRESOLVED` by rule-based reconciliation to determine if ambiguous candidate evidence can be safely resolved.
 
 ```text
-High-confidence AI match
+Exact Deterministic Rules (Level 1)
         ↓
-Auto-resolve
-
-Moderate confidence
+Normalized & Bounded Fuzzy Rules (Level 2)
         ↓
-Review / unresolved
-
-Low confidence
+UNRESOLVED / Ambiguous Candidates Only
         ↓
-Unresolved
+AI Resolver Service (features/ai/resolver.ts)
+        ↓
+OpenRouter API (google/gemini-2.5-flash / fallback models)
+        ↓
+Zod Validation & Confidence/Policy Gate (>= 0.80)
+        ↓
+MATCHED (AI-Assisted) / UNRESOLVED / REJECTED
 ```
 
-Exact thresholds remain open until benchmark data exists.
+---
 
-Do not invent a threshold and treat it as scientifically correct.
+### Architecture & Design Decisions
 
-### AI audit information
+#### 1. Downstream Placement & Protection of Deterministic Baseline
+- **Strict Invariant**:
+  - Deterministic matches (`status === 'MATCHED'`) are **locked and protected**. AI is **NEVER** called for deterministic matches.
+  - Hard financial mismatches (`AMOUNT_MISMATCH`) exceeding fee policy ($5.00) are **NEVER** sent to AI.
+  - Zero-candidate invoices (`MISSING_RECORD`) and duplicate payments (`DUPLICATE`) are **NEVER** sent to AI.
+- **Principle**: *AI may improve an unresolved decision, but it must NEVER degrade a decision established safely by deterministic logic.*
 
-Where AI participates, persist:
+#### 2. OpenRouter Interface & Input Bounding (`features/ai/types.ts`)
+- **Module Location**: `features/ai/` contains `types.ts`, `openrouter.ts`, `resolver.ts`, `index.ts`.
+- **Bounded Input Contract**:
+  - Maximum 3 top candidate pairs per unresolved invoice (`top3Candidates`).
+  - Input evidence payload sent to model:
+    - `invoice`: `{ number, vendor, amountCents, currency, issueDate }`
+    - `candidates`: Array of `{ bankTxId, ref, description, amountCents, currency, transactionDate, vendorSimilarity, dateDeltaDays, amountDeltaCents }`
+    - `reconciliationContext`: Reason code explaining why deterministic rules marked the record `UNRESOLVED` (e.g. `INSUFFICIENT_EVIDENCE`).
+  - **Zero Leakage**: `groundTruthId`, benchmark labels, and expected outputs are 100% excluded from model prompts.
 
-* model/provider
-* AI decision
-* confidence
-* reason
-* timestamp
-* relevant request/response metadata needed for auditability
+#### 3. Model Selection, Timeout & Provider Failovers
+- **Primary Model**: `google/gemini-2.5-flash` via OpenRouter.
+- **Fallback Models**: `anthropic/claude-3.5-haiku` / `openai/gpt-4o-mini`.
+- **Timeout**: `8000ms` (8s) per call enforced via `AbortSignal.timeout(8000)`.
+- **Retries**: Max 1 retry with 500ms backoff.
+- **Provider Failure Handling**: On network failure, HTTP 5xx, HTTP 429, or timeout, system catches error, records `AI_UNAVAILABLE` Exception, and safely preserves the original deterministic `UNRESOLVED` decision.
 
-Never store secrets.
+#### 4. Structured JSON Output & Zod Validation
+- OpenRouter requests enforce JSON response format.
+- **Zod Response Schema**:
+  ```ts
+  export const aiResolverResponseSchema = z.object({
+    decision: z.enum(['MATCH', 'REJECT', 'UNRESOLVED']),
+    selectedBankTxId: z.string().nullable(),
+    confidenceScore: z.number().min(0).max(1),
+    ruleStrength: z.enum(['FUZZY_HIGH', 'FUZZY_LOW', 'DISCREPANCY']),
+    reasoning: z.string().min(10).max(500),
+    keyEvidence: z.array(z.string()),
+  });
+  ```
+- **Invalid Response Handling**: If model output fails Zod parsing (malformed JSON or invalid schema), system catches error, records `AI_INVALID_RESPONSE` Exception, and safely preserves the original deterministic `UNRESOLVED` decision.
+
+#### 5. Confidence Gating & Safety Policy Gate
+- **Minimum AI Confidence Threshold**: `0.80`.
+- **Policy Gate Requirements for Promotion to `MATCHED`**:
+  1. Model output `decision === 'MATCH'`.
+  2. Model `confidenceScore >= 0.80`.
+  3. `selectedBankTxId` exists in candidate set.
+  4. Settlement `amountDeltaCents` is within allowed fee policy ($5.00).
+  5. Date delta is within policy window (`[-5, +30]` days).
+- If `confidenceScore < 0.80` or financial constraints fail $\rightarrow$ decision remains `UNRESOLVED`.
+
+#### 6. Persisted Audit Trail & Metrics
+- Where AI resolves or evaluates a record, persist:
+  - `method`: `'AI'`
+  - `aiUsed`: `true`
+  - `confidence`: `confidenceScore` (diagnostic model signal)
+  - `aiMetadataJson`: `{ model: "google/gemini-2.5-flash", reasoning, keyEvidence, promptDurationMs }`
+- `ReconciliationRun` tracks `aiCallCount` incrementing for every OpenRouter call made.
+
+#### 7. Authoritative Benchmark Evaluation Rules
+- Benchmark expected status (`MATCHED` | `MISMATCH` | `UNRESOLVED`) is authoritative.
+- Decisions are evaluated purely by expected status and exception match; using `method: 'AI'` incurs **zero penalty** if the financial outcome is correct.
 
 ### Checklist
 
-* [ ] Decide OpenRouter request strategy
-* [ ] Decide structured output shape
-* [ ] Implement AI resolver interface
-* [ ] Implement OpenRouter adapter
-* [ ] Validate responses with Zod
-* [ ] Handle invalid model output
-* [ ] Add AI-assisted reconciliation
-* [ ] Compare AI decisions with benchmark truth
-* [ ] Tune and document confidence policy
+* [ ] Define AI resolver interfaces and Zod response schema in `features/ai/types.ts`
+* [ ] Implement OpenRouter API adapter in `features/ai/openrouter.ts`
+* [ ] Implement AI ambiguity resolver service in `features/ai/resolver.ts`
+* [ ] Implement strict eligibility gating (only `UNRESOLVED` records processed, deterministic matches locked)
+* [ ] Enforce Zod schema validation and provider failure handling (`AI_UNAVAILABLE` / `AI_INVALID_RESPONSE`)
+* [ ] Implement AI confidence threshold gate (`>= 0.80`) and financial safety checks
+* [ ] Integrate AI resolver into `reconciliationService` in `features/reconciliation/service.ts`
+* [ ] Persist AI audit metadata (`aiUsed`, `confidence`, `aiMetadataJson`, `aiCallCount`)
+* [ ] Execute full 200-case benchmark with AI ambiguity resolution
+* [ ] Compare AI-assisted accuracy against deterministic baseline (92.5%) and verify zero degradation of deterministic matches
 
 ---
 
