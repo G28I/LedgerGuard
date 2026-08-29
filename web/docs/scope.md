@@ -205,94 +205,77 @@ Do not store the entire financial domain as one generic JSON object.
 
 ---
 
-## 4. Reconciliation domain model & rules
+### Reconciliation Engine Architecture & Rules
 
-The reconciliation engine is the core of the product.
-
-It should not live inside a React component or depend directly on OpenRouter.
-
-The engine should take normalized source records and produce explicit decisions.
-
-The decision hierarchy is:
+The domain layer lives in `features/reconciliation/` as pure, side-effect-free TypeScript functions. AI calls are strictly deferred to Slice 2; Feature 4 establishes the deterministic foundation.
 
 ```text
-Exact deterministic match
-        ↓
-Normalized / fuzzy matching
-        ↓
-AI reasoning for ambiguity
-        ↓
-Unresolved exception
+Normalized Source Records
+          ↓
+Multi-Index Candidate Generator
+          ↓
+Level 1: Exact Deterministic Rules (Ref, Amount, Currency, Strict Date)
+          ↓ (If unmatched)
+Level 2: Normalized & Bounded Fuzzy Rules (Vendor Similarity, Amount Delta, Date Window)
+          ↓ (If ambiguous or conflict)
+Duplicate & Ambiguity Safety Checks
+          ↓
+Decision Policy Gate → [MATCHED | MISMATCH | UNRESOLVED] + Exception List
 ```
 
-The simplest reliable method always wins.
+#### 1. Normalized Record Representations
+- **`NormalizedInvoice`**: `id`, `invoiceNumber` (raw + cleaned uppercase), `vendorName` (raw + normalized string), `amountCents` (integer cents), `currency` (ISO upper), `issueDate` (ISO Date), `dueDate` (ISO Date).
+- **`NormalizedBankTx`**: `id`, `transactionRef` (raw + cleaned uppercase), `description` (raw + normalized string), `extractedRef` (regex extracted invoice ref if present), `amountCents` (integer cents), `currency` (ISO upper), `transactionDate` (ISO Date).
+- **`NormalizedLedgerEntry`**: `id`, `entryRef` (raw + cleaned uppercase), `accountCode`, `description` (raw + normalized string), `amountCents` (integer cents), `currency` (ISO upper), `postingDate` (ISO Date).
 
-### Deterministic matching
+#### 2. Normalization Rules
+- **Vendor/Description Normalization**: Lowercases, strips punctuation, normalizes spaces, and strips corporate suffixes (`Inc`, `Ltd`, `Corp`, `LLC`, `Co`, `Corporation`, `Limited`, `Incorporated`).
+- **Reference Extraction**: Uses pattern matching (`INV-\d+`, `PO-\d+`, `LEG-\d+`) to pull embedded reference tokens out of messy bank descriptions.
 
-Do not use AI for:
+#### 3. Candidate Generation Strategy
+- Uses indexed lookup maps (by exact reference, extracted reference, normalized vendor token, amountCents, and date window) rather than $O(N \times M)$ pairwise comparison.
+- Produces bounded candidate pairs `(Invoice, BankTx, LedgerEntry?)` for rule evaluation.
 
-* exact reference comparison
-* exact amount comparison
-* currency comparison
-* date tolerance checks
-* arithmetic
-* deterministic duplicate checks
+#### 4. Level 1: Exact Deterministic Matching Rules
+- **Rule 1.1 (Exact Reference & Amount Match)**: Exact reference match AND exact `amountCents` equality AND exact `currency` match AND `transactionDate` within `[-5, +30]` days of `issueDate`.
+  - Result: `MATCHED`, method `DETERMINISTIC`, confidence `1.0`, reason `EXACT_REF_AND_AMOUNT_MATCH`.
 
-Example:
+#### 5. Level 2: Fuzzy & Bounded Discrepancy Matching Rules
+- **Rule 2.1 (Normalized Vendor & Exact Amount Match)**: Normalized vendor similarity $\ge 0.85$ AND exact `amountCents` equality AND currency match AND `transactionDate` within `[-5, +30]` days.
+  - Result: `MATCHED`, method `FUZZY`, confidence `0.90`, reason `FUZZY_VENDOR_EXACT_AMOUNT_MATCH`.
+- **Rule 2.2 (Discrepancy - Amount Mismatch)**: Vendor/Reference matches ($\ge 0.85$), but `amountCents` delta is non-zero (exceeds fee threshold).
+  - Result: `MISMATCH` or `UNRESOLVED`, method `FUZZY`, produces `AMOUNT_MISMATCH` Exception.
+- **Rule 2.3 (Discrepancy - Date Mismatch)**: Reference and amount match, but `transactionDate` falls outside the allowed 35-day window.
+  - Result: `UNRESOLVED`, method `FUZZY`, produces `DATE_MISMATCH` Exception.
 
-```text
-Invoice reference = bank reference
-AND
-Amount = amount
-AND
-Currency = currency
-```
+#### 6. Safety & Disambiguation Rules
+- **Duplicate Detection**: If a single invoice matches multiple bank transactions (or vice versa), ALL candidate matches for that record are rejected and flagged as `DUPLICATE` Exceptions.
+- **Multiple Plausible Candidates**: If top 2 candidate scores for a record differ by $< 0.05$, the decision is set to `UNRESOLVED` with an `AMBIGUOUS_MATCH` Exception to prevent false-positive matching.
+- **Missing Record Detection**: Records with zero candidate matches produce `MISSING_RECORD` Exceptions.
+- **Currency Isolation**: Mismatched currencies are never auto-matched without explicit conversion logic; flagged as `UNRESOLVED` (`INSUFFICIENT_EVIDENCE`).
 
-→ `MATCHED`
-
-### Fuzzy matching
-
-Normalize fields such as:
-
-* vendor names
-* references
-* descriptions
-
-Examples:
-
-```text
-"Acme Corporation Limited"
-"ACME CORP LTD."
-```
-
-can become comparable representations before fuzzy scoring.
-
-Fuzzy matching must remain explainable and bounded.
-
-### Ambiguous matching
-
-If deterministic logic finds multiple plausible candidates or insufficient evidence, produce an AI candidate-resolution request.
-
-The AI should never receive an unconstrained instruction to "do the reconciliation."
-
-It should receive the relevant records and a narrow decision:
-
-```text
-MATCH
-REJECT
-UNRESOLVED
-```
-
-along with a concise reason and model-produced confidence signal.
+#### 7. Representative Edge Cases Covered
+- `exact_match`: Identical reference, amount, and date.
+- `vendor_name_variation`: "Acme Corporation Ltd." vs "ACME CORP".
+- `reference_variation`: Embedded ref "PAYMENT FOR INV-2026-001" in bank memo.
+- `amount_mismatch`: Vendor matches, but bank amount is $800.00 while invoice is $850.75.
+- `date_mismatch`: Valid reference and amount, but bank transaction is 90 days late.
+- `missing_transaction`: Invoice with 0 matching bank or ledger entries.
+- `duplicate_candidate`: Two identical bank transactions matching the same single invoice.
+- `multiple_plausible_candidates`: Invoice matching two different bank transactions with equal similarity scores (0.88 vs 0.86).
+- `insufficient_evidence`: Bank memo "TRANSFER 123" with no reference or vendor match.
 
 ### Checklist
 
-* [ ] Define normalized financial record types
-* [ ] Define deterministic matching rules
-* [ ] Define mismatch rules
-* [ ] Define candidate generation
-* [ ] Define fuzzy matching behavior
-* [ ] Implement reconciliation as pure domain logic
+* [ ] Implement normalized record domain types in `features/reconciliation/types.ts`
+* [ ] Implement string & vendor normalization utility in `features/reconciliation/normalize.ts`
+* [ ] Implement candidate indexing and generation in `features/reconciliation/candidates.ts`
+* [ ] Implement Level 1 exact deterministic matching rules in `features/reconciliation/rules/exact.ts`
+* [ ] Implement Level 2 fuzzy matching and similarity scoring in `features/reconciliation/rules/fuzzy.ts`
+* [ ] Implement safety rules (duplicate detection, candidate ties, missing records) in `features/reconciliation/safety.ts`
+* [ ] Implement pure reconciliation engine pipeline in `features/reconciliation/engine.ts`
+* [ ] Write unit verification tests covering all 9 representative edge cases
+* [ ] Verify `npm run check` (typecheck + lint) passes cleanly
 * [ ] Verify decisions against representative cases
 
 ---
