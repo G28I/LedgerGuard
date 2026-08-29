@@ -635,19 +635,99 @@ The exception queue is first-class product output.
 
 Do not bury unresolved cases at the bottom of the application.
 
+### Feature 8 Architecture & Concrete UI Design Decisions
+
+#### 1. Visual Identity & Product Feel
+- **Fintech Control Center**: Professional, trustworthy finance-ops workstation (Credrails 40%, Stripe 20%, Agicap 15%, Cointab 15%, Mercury 5%, Reconly 5%).
+- **No Gimmicks**: Restrained typography (Inter / Geist), subtle neutral backgrounds (`bg-slate-950` / `bg-slate-900` dark theme), clean border definitions (`border-slate-800`). No glowing AI banners or cartoon mascots.
+- **Desktop First**: Dense tables with fixed header alignment and right-side inspection drawer (`sheet`).
+- **Responsive Mobile Rule**: On mobile breakpoints (`<768px`), dense data tables transform into accessible stacked record cards preserving exact evidence hierarchy rather than horizontally scrolling squished columns.
+
+---
+
+#### 2. Core Workflow Views & Architecture
+
+1. **Overview View (`/`)**:
+   - **Summary KPI Bar**: Total Records Processed (200), Matched Count (120), Unresolved Exceptions (80), Resolution Rate (60.00%), Ground Truth Accuracy (92.50%), AI Call Count (26).
+   - **Recent Runs Table**: Top 5 historical runs with Run ID, Timestamp, Records, Matched, Resolution Rate, Accuracy, Status.
+   - **Exception Distribution**: Categorized cards showing count by exception type (`AMOUNT_MISMATCH`, `AMBIGUOUS_MATCH`, `DATE_MISMATCH`, `MISSING_RECORD`, `DUPLICATE`).
+   - **Primary CTA**: `[New Reconciliation Run]` button opening run modal.
+
+2. **New Reconciliation View (`/reconciliation/new` / Modal)**:
+   - **Form Options**: Seed input (default `42`), Batch Name (default `"Run YYYY-MM-DD"`), AI Ambiguity Resolution Toggle (`enableAI: true` / `false`), Selected Model (`google/gemini-2.0-flash-001`).
+   - **Source Record Summary**: 200 Invoices, 260 Bank Transactions, 20 Comptroller Ledger Entries (480 total source records).
+   - **Action**: `[Execute Reconciliation]` button initiating run.
+
+3. **Running Reconciliation View (Active State / Loader)**:
+   - **Processing States**: Synchronous POST operation with clean stage indicator:
+     `PENDING` $\rightarrow$ `PROCESSING` (Normalizing $\rightarrow$ Deterministic Matching $\rightarrow$ Fuzzy Matching $\rightarrow$ AI Safety Gate $\rightarrow$ Atomic DB Persistence) $\rightarrow$ `COMPLETED` / `FAILED`.
+   - **Zero Fake Animations**: Accurately reflects backend processing state.
+
+4. **Reconciliation Results View (`/reconciliation/[id]`)**:
+   - **Header Summary**: Run ID, Batch Name, Processing Duration (ms), Throughput (rec/sec), Matched Count, Unresolved Count, AI Calls Made, Accuracy %.
+   - **Filter Tabs**: `All (200)` | `Matched (120)` | `Exceptions / Unresolved (80)` | `AI-Assisted (26)`
+   - **Sub-Filter Controls**: Decision Method (`DETERMINISTIC`, `FUZZY`, `AI`), Exception Type (`AMOUNT_MISMATCH`, `AMBIGUOUS_MATCH`, etc.), Search input (Ref / Vendor / Description).
+   - **Dense Financial Table Columns**:
+     - `Status`: Badge (`MATCHED` [emerald], `MISMATCH` [amber/red], `UNRESOLVED` [amber]).
+     - `Invoice Ref`: Invoice Number (`INV-2026-XXXX`).
+     - `Vendor / Description`: Vendor Name vs Bank Tx Description.
+     - `Invoice Amount`: `$XX,XXX.XX` USD.
+     - `Matched Bank Tx`: Bank Tx Ref (`TX-XXXX-X`) or `— (No Match)`.
+     - `Amount Delta`: `$0.00` or `+$X.XX` difference.
+     - `Method`: Badge (`DETERMINISTIC` [slate], `FUZZY` [indigo], `AI` [purple]).
+     - `Confidence`: Percentage signal or `N/A`.
+     - `Actions`: `[Inspect Evidence]` button opening Right Side Drawer.
+
+5. **Record Detail Drawer (Desktop Right Drawer)**:
+   - **Pattern**: **Summary $\rightarrow$ Evidence $\rightarrow$ Decision**
+   - **Header**: Invoice Ref & Final Status Badge.
+   - **Decision & Method Card**: Status, Match Method, Reason Code, Explanation, Confidence.
+   - **Side-by-Side Evidence Grid**:
+     - **Invoice Column**: Ref, Vendor, Amount, Date, Currency.
+     - **Bank Transaction Column**: Ref, Description, Amount, Date, Currency.
+     - **Ledger Entry Column**: Entry ID, Account, Amount, Posting Date.
+     - **Computed Deltas**: Amount Delta ($), Date Delta (days), Vendor Similarity (%).
+   - **Audit & AI Section**:
+     - If AI Used: Model Used, Prompt Duration (ms), Model Reasoning, Key Evidence list.
+     - If AI Not Used: `AI Used: No` with explicit deterministic / safety gate reason (e.g. `"Exact reference and amount matched"` or `"Protected ambiguity safety gate"`).
+
+6. **Exception Queue View (`/exceptions`)**:
+   - **Purpose**: First-class operator triage queue.
+   - **Header Summary**: Open Exceptions (80), High Priority Discrepancies, Ambiguous Candidate Ties, Missing Records.
+   - **Filter Controls**: Priority (`HIGH`, `MEDIUM`, `LOW`), Exception Type, Run ID selector.
+   - **Table Columns**: Priority Badge, Exception Type Badge, Invoice Ref & Vendor, Expected Value, Observed Value, Discrepancy Amount, AI Status, Actions (`[Triage]` button opening Exception Detail Drawer).
+
+7. **Exception Detail Drawer (Desktop Right Drawer)**:
+   - **Discrepancy Highlight Box**:
+     - Expected: e.g., Amount `$1,000.00`
+     - Observed: e.g., Bank Amount `$1,050.00`
+     - Discrepancy: `+$50.00` (`AMOUNT_MISMATCH`)
+   - **Why Unresolved Card**: Explicit explanation of why reconciliation failed or was safely held.
+   - **Evidence & Action Buttons**: View source records, mark reviewed.
+
+---
+
+#### 3. Required Backend API Additions (No Mock Data)
+
+To support this UI architecture strictly from backend contracts, we will add 2 clean API routes:
+1. `GET /api/reconciliation/run/[id]`: Returns full `ReconciliationRun` record with nested `results` (with `invoice`, `bankTransaction`, `ledgerEntry`, `exceptions`) and `exceptions`.
+2. `GET /api/reconciliation/exceptions`: Returns recent exceptions across runs with filtering parameters (`?type=...`, `?priority=...`, `?runId=...`).
+
+---
+
 ### Checklist
 
-* [ ] Decide dashboard information hierarchy
-* [ ] Build summary metrics
-* [ ] Build reconciliation result table
-* [ ] Build result detail view
-* [ ] Build exception queue
-* [ ] Show decision method
-* [ ] Show supporting evidence
-* [ ] Add loading states
-* [ ] Add empty states
-* [ ] Add failure states
-* [ ] Verify keyboard and accessibility behavior
+* [ ] Implement `GET /api/reconciliation/run/[id]` and `GET /api/reconciliation/exceptions` API routes
+* [ ] Build Application Shell & Navigation Layout (Overview, Reconciliation, Exceptions, Runs)
+* [ ] Build Overview View (`/`) with KPI metrics, recent runs table, and exception breakdown
+* [ ] Build New Reconciliation Modal / Form (`/reconciliation/new`) with seed, AI toggle, and model info
+* [ ] Build Reconciliation Results View (`/reconciliation/[id]`) with dense financial table and filter tabs
+* [ ] Build Record Detail Drawer (`sheet`) with Summary $\rightarrow$ Evidence $\rightarrow$ Decision pattern
+* [ ] Build Exception Queue View (`/exceptions`) with priority filters and discrepancy tables
+* [ ] Build Exception Detail Drawer (`sheet`) with Expected vs Observed discrepancy highlights
+* [ ] Implement responsive mobile card view transformations (<768px)
+* [ ] Verify loading, empty, and error states across all screens
+* [ ] Run typecheck (`npx tsc --noEmit`), lint (`npm run lint`), and production build (`npm run build`)
 
 ---
 
