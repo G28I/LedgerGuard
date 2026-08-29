@@ -284,42 +284,73 @@ Decision Policy Gate → [MATCHED | MISMATCH | UNRESOLVED] + Exception List
 
 ## 5. Synthetic benchmark generator
 
-The system must have a reproducible synthetic dataset with known ground truth.
+The synthetic benchmark generator provides reproducible multi-source financial data with independent ground truth labels for objective evaluation.
 
-The minimum requirement is 50+ records, but the actual benchmark should be substantially larger so throughput and error behavior mean something.
+### Feature 4 Edge-Case Semantics Clarification
+- **Why `INSUFFICIENT_EVIDENCE` becomes `MISSING_RECORD` for unlinked memo tokens**:
+  - In Feature 4, when a bank description contains generic text (e.g. `"GENERIC TRANSFER 123"`) with zero reference token link and zero vendor similarity to an invoice, the candidate generator correctly finds **0 candidate matches** for that invoice.
+  - To the reconciliation engine, an invoice with 0 matching candidate records in the bank batch is classified as a `MISSING_RECORD` exception (no corresponding transaction found in the settlement source).
+  - Conversely, if candidate records ARE generated (e.g. via token overlap) but lack sufficient reference proof to auto-resolve, the engine produces `reasonCode: 'INSUFFICIENT_EVIDENCE'` with an `INSUFFICIENT_EVIDENCE` Exception. This explicit semantic distinction is intentional and enforced.
 
-Aim for roughly 200 records for the primary demonstration unless implementation or runtime gives us a concrete reason to choose another size.
+---
 
-The generator should produce both straightforward and difficult cases.
+### Generator Architecture & Design Decisions
 
-Example distribution:
+#### 1. Location & Module Boundaries
+- **Generation Logic (`features/synthetic/`)**: Pure generator functions using `@faker-js/faker`. Zero dependencies on OpenRouter or AI models.
+- **Shared Benchmark Contracts (`features/benchmark/`)**: Shared types (`SyntheticBatchDataset`, `GroundTruthLabel`, `BenchmarkScenarioType`) live in `features/benchmark/types.ts` so generation and evaluation layers stay cleanly decoupled.
 
-| Case type                | Approx. share |
-| ------------------------ | ------------: |
-| Exact match              |        50–60% |
-| Name/reference variation |        10–20% |
-| Amount mismatch          |         5–10% |
-| Date mismatch            |         5–10% |
-| Missing record           |            5% |
-| Duplicate                |          3–5% |
-| Ambiguous                |          2–5% |
+#### 2. Reproducible Seed Strategy
+- Uses `@faker-js/faker` with explicit `faker.seed(seedNumber)` (e.g. `seed = 42`).
+- Guaranteed 100% reproducible synthetic financial batches across test runs and benchmark scoring.
 
-These are starting targets, not immutable numbers. Adjust them if benchmark results suggest a more useful distribution and document the change.
+#### 3. Target Benchmark Size & Distribution (200 Records Default)
+- **Primary Benchmark Size**: **200 records** (substantially above the 50-record minimum, testing realistic batch throughput and statistical metrics).
+- **Scenario Share Distribution**:
+  - **Exact Matches (40%, ~80 records)**: Identical invoice number, vendor name, exact integer amountCents, valid dates.
+  - **Vendor & Memo Variations (20%, ~40 records)**: Typos, corporate suffixes (`"Acme Corp"` vs `"Acme Corporation Limited"`), memo prefixes (`"WIRE SETTLEMENT REF: INV-2026-101"`).
+  - **Amount Mismatches (10%, ~20 records)**: Settlement fee deductions (-$5.00 to -$50.00), partial payments, rounding errors.
+  - **Date Mismatches (10%, ~20 records)**: Settlement dates 45 to 120 days past invoice due date.
+  - **Missing Records (10%, ~20 records)**: Unmatched invoices without bank transactions, or unlinked bank deposits.
+  - **Duplicates & Ambiguous Matches (10%, ~20 records)**: Double bank payments for 1 invoice, split payments, or lookalike vendor candidates (`"Apex Capital Group"` vs `"Apex Capital Partners"`).
 
-Every generated case must retain its expected outcome so the system can be scored independently.
+#### 4. Ground Truth Labeling & Isolation
+- Each synthetic record is assigned an isolated `groundTruthId` (e.g. `GT-PAIR-088`).
+- **`GroundTruthLabel` Object**:
+  - `groundTruthId`: `string`
+  - `scenarioType`: `EXACT_MATCH` | `VENDOR_VARIATION` | `REF_VARIATION` | `AMOUNT_MISMATCH` | `DATE_MISMATCH` | `MISSING_RECORD` | `DUPLICATE` | `AMBIGUOUS_MATCH` | `ADVERSARIAL`
+  - `expectedStatus`: `MATCHED` | `MISMATCH` | `UNRESOLVED`
+  - `expectedMatchMethod`: `DETERMINISTIC` | `FUZZY` | `AI`
+  - `expectedExceptionType`: `AMOUNT_MISMATCH` | `DATE_MISMATCH` | `MISSING_RECORD` | `DUPLICATE` | `AMBIGUOUS_MATCH` | `INSUFFICIENT_EVIDENCE` | null
+  - `expectedInvoiceId`: `string`
+  - `expectedBankTxId`: `string` | null
+- **Strict Isolation Guarantee**: Generator produces `SyntheticBatchDataset` containing two separate outputs:
+  - `sourceRecords`: Pure `Invoice[]`, `BankTransaction[]`, `LedgerEntry[]` sent to the runtime reconciliation engine.
+  - `groundTruthMap`: `Map<string, GroundTruthLabel>` passed ONLY to `features/benchmark/` for offline scoring.
+  - The runtime reconciliation engine receives ONLY `sourceRecords` and has zero access to `groundTruthMap` or `groundTruthId`.
 
-The benchmark should be seeded so the same dataset can be regenerated when useful.
+#### 5. Adversarial Scenarios
+- `ADVERSARIAL_LOOKALIKE`: Invoices with similar vendor names and identical amountCents, but different invoice numbers and dates (tests candidate tie-breaking & ambiguity safety).
+- `ADVERSARIAL_DUPLICATE_MEMO`: Bank memos with copy-pasted invoice references for two separate transactions.
+- `ADVERSARIAL_UNRESOLVED_MEMO`: Garbage bank descriptions (`"MISC DEP 8839"`) with matching amounts.
+
+#### 6. Objective Benchmark Scoring Contract
+- `features/benchmark/` compares runtime `ReconciliationDecision[]` against `groundTruthMap` to calculate:
+  - Overall Accuracy %
+  - Precision, Recall, F1 for Matches
+  - Precision & Recall for Exception Detection
+  - Throughput (records/sec) & AI Escalation Rate
 
 ### Checklist
 
-* [ ] Define the benchmark record model
-* [ ] Define ground-truth outcomes
-* [ ] Implement synthetic data generation
-* [ ] Add deliberate edge cases
-* [ ] Add reproducible seeding
-* [ ] Generate the first 50+ record dataset
-* [ ] Generate the primary benchmark dataset
-* [ ] Verify generated ground truth independently
+* [ ] Define benchmark data types and ground truth contracts in `features/benchmark/types.ts`
+* [ ] Implement reproducible seeded Faker generator in `features/synthetic/generator.ts`
+* [ ] Implement scenario distributions (Exact, Variation, Amount Mismatch, Date Mismatch, Missing, Duplicate, Ambiguous)
+* [ ] Implement adversarial cases (Lookalike vendors, duplicate memos, garbage descriptions)
+* [ ] Enforce strict ground truth isolation from runtime reconciliation engine
+* [ ] Export synthetic generator API in `features/synthetic/index.ts`
+* [ ] Generate 50-record initial dataset and 200-record primary benchmark dataset
+* [ ] Verify generator seed reproducibility and ground truth integrity
 
 ---
 
