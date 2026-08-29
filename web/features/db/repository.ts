@@ -145,14 +145,19 @@ export const dbRepository = {
       where: { id: runId },
       include: {
         results: {
+          orderBy: { createdAt: 'asc' },
           include: {
             invoice: true,
             bankTransaction: true,
             ledgerEntry: true,
-            exceptions: true,
+            exceptions: {
+              orderBy: { createdAt: 'asc' },
+            },
           },
         },
-        exceptions: true,
+        exceptions: {
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
   },
