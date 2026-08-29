@@ -1,0 +1,31 @@
+name: PR Code Review Agent
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  issue_comment:
+    types: [created]
+
+jobs:
+  pr_review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Qodo PR-Agent Code Review
+        uses: qodo-ai/pr-agent-action@v0.22
+        env:
+          OPENAI_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI.API_BASE: "https://openrouter.ai/api/v1"
+          OPENAI.MODEL: "google/gemini-2.5-flash"
+          CONFIG.MODEL: "google/gemini-2.5-flash"
+          PR_REVIEWER.NUM_CODE_SUGGESTIONS: 5
+          PR_REVIEWER.ENABLE_REVIEW_LABELS_SECURITY: true
+          PR_REVIEWER.REQUIRE_CAN_BE_MERGED_REQUIREMENT: false
