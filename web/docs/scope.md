@@ -645,17 +645,17 @@ Do not bury unresolved cases at the bottom of the application.
 
 ---
 
-#### 2. Core Workflow Views & Architecture
+#### 2. Core Workflow Views & Architecture (Dynamic Data Contracts)
 
 1. **Overview View (`/`)**:
-   - **Summary KPI Bar**: Total Records Processed (200), Matched Count (120), Unresolved Exceptions (80), Resolution Rate (60.00%), Ground Truth Accuracy (92.50%), AI Call Count (26).
-   - **Recent Runs Table**: Top 5 historical runs with Run ID, Timestamp, Records, Matched, Resolution Rate, Accuracy, Status.
-   - **Exception Distribution**: Categorized cards showing count by exception type (`AMOUNT_MISMATCH`, `AMBIGUOUS_MATCH`, `DATE_MISMATCH`, `MISSING_RECORD`, `DUPLICATE`).
+   - **Summary KPI Bar**: Dynamically fetched from database (`totalRecords`, `matchedCount`, `unresolvedCount`, `resolutionRate`, `accuracy` [or `N/A` if null], `aiCallCount`). Zero hard-coded constants.
+   - **Recent Runs Table**: Top 5 historical runs fetched via API with Run ID, Timestamp, Records, Matched, Resolution Rate, Accuracy, Status.
+   - **Exception Distribution**: Categorized count breakdown dynamically aggregated by exception type (`AMOUNT_MISMATCH`, `AMBIGUOUS_MATCH`, `DATE_MISMATCH`, `MISSING_RECORD`, `DUPLICATE`).
    - **Primary CTA**: `[New Reconciliation Run]` button opening run modal.
 
 2. **New Reconciliation View (`/reconciliation/new` / Modal)**:
    - **Form Options**: Seed input (default `42`), Batch Name (default `"Run YYYY-MM-DD"`), AI Ambiguity Resolution Toggle (`enableAI: true` / `false`), Selected Model (`google/gemini-2.0-flash-001`).
-   - **Source Record Summary**: 200 Invoices, 260 Bank Transactions, 20 Comptroller Ledger Entries (480 total source records).
+   - **Dynamic Source Record Preview**: Displays actual underlying source counts from dataset generation (e.g. for seed 42: 200 invoices, 200 bank transactions, 80 ledger entries = 480 total source records).
    - **Action**: `[Execute Reconciliation]` button initiating run.
 
 3. **Running Reconciliation View (Active State / Loader)**:
@@ -664,8 +664,8 @@ Do not bury unresolved cases at the bottom of the application.
    - **Zero Fake Animations**: Accurately reflects backend processing state.
 
 4. **Reconciliation Results View (`/reconciliation/[id]`)**:
-   - **Header Summary**: Run ID, Batch Name, Processing Duration (ms), Throughput (rec/sec), Matched Count, Unresolved Count, AI Calls Made, Accuracy %.
-   - **Filter Tabs**: `All (200)` | `Matched (120)` | `Exceptions / Unresolved (80)` | `AI-Assisted (26)`
+   - **Header Summary**: Run ID, Batch Name, Processing Duration (ms), Throughput (rec/sec), Matched Count, Unresolved Count, AI Calls Made, Accuracy % (or `N/A` if unavailable).
+   - **Filter Tabs**: `All (200)` | `Matched (120)` | `Exceptions / Unresolved (80)` | **`AI Evaluated (26)`** (Semantically accurate count representing records for which an AI provider call actually occurred).
    - **Sub-Filter Controls**: Decision Method (`DETERMINISTIC`, `FUZZY`, `AI`), Exception Type (`AMOUNT_MISMATCH`, `AMBIGUOUS_MATCH`, etc.), Search input (Ref / Vendor / Description).
    - **Dense Financial Table Columns**:
      - `Status`: Badge (`MATCHED` [emerald], `MISMATCH` [amber/red], `UNRESOLVED` [amber]).
@@ -693,38 +693,41 @@ Do not bury unresolved cases at the bottom of the application.
 
 6. **Exception Queue View (`/exceptions`)**:
    - **Purpose**: First-class operator triage queue.
-   - **Header Summary**: Open Exceptions (80), High Priority Discrepancies, Ambiguous Candidate Ties, Missing Records.
-   - **Filter Controls**: Priority (`HIGH`, `MEDIUM`, `LOW`), Exception Type, Run ID selector.
-   - **Table Columns**: Priority Badge, Exception Type Badge, Invoice Ref & Vendor, Expected Value, Observed Value, Discrepancy Amount, AI Status, Actions (`[Triage]` button opening Exception Detail Drawer).
+   - **Header Summary**: Open Exceptions, High Priority Discrepancies, Ambiguous Candidate Ties, Missing Records.
+   - **Filter Controls**: Priority (`HIGH`, `MEDIUM`, `LOW`), Exception Type, Run ID selector, Resolution Status (`Open` / `Resolved`).
+   - **Table Columns**: Priority Badge, Exception Type Badge, Invoice Ref & Vendor, Expected Value, Observed Value, Discrepancy Amount, AI Status, Resolution Status, Actions (`[Triage & Review]` button opening Exception Detail Drawer).
 
-7. **Exception Detail Drawer (Desktop Right Drawer)**:
-   - **Discrepancy Highlight Box**:
-     - Expected: e.g., Amount `$1,000.00`
-     - Observed: e.g., Bank Amount `$1,050.00`
-     - Discrepancy: `+$50.00` (`AMOUNT_MISMATCH`)
+7. **Exception Detail Drawer (Desktop Right Drawer) & Review Semantics**:
+   - **Discrepancy Highlight Box**: Expected Value vs Observed Value vs Discrepancy Amount.
    - **Why Unresolved Card**: Explicit explanation of why reconciliation failed or was safely held.
-   - **Evidence & Action Buttons**: View source records, mark reviewed.
+   - **Backend Review Semantics & Persistence (`PATCH /api/reconciliation/exceptions/[id]`)**:
+     - **State Transition**: `resolved` Boolean transitions from `false` to `true`.
+     - **Reviewer Identity**: `resolvedBy` recorded (e.g. `"Finance Operator"`).
+     - **Timestamp**: `resolvedAt` recorded as `new Date()`.
+     - **Resolution Notes**: `resolutionNotes` text stored in PostgreSQL.
+     - **Action Button**: `[Resolve Exception]` triggers API call and updates DB state cleanly.
 
 ---
 
-#### 3. Required Backend API Additions (No Mock Data)
+#### 3. Required Backend API Additions (Minimal & Non-Redundant)
 
-To support this UI architecture strictly from backend contracts, we will add 2 clean API routes:
-1. `GET /api/reconciliation/run/[id]`: Returns full `ReconciliationRun` record with nested `results` (with `invoice`, `bankTransaction`, `ledgerEntry`, `exceptions`) and `exceptions`.
-2. `GET /api/reconciliation/exceptions`: Returns recent exceptions across runs with filtering parameters (`?type=...`, `?priority=...`, `?runId=...`).
+To support this UI architecture strictly from backend contracts, we will add 3 clean API routes reusing existing repository functions:
+1. `GET /api/reconciliation/run/[id]`: Returns full `ReconciliationRun` record with nested `results` (with `invoice`, `bankTransaction`, `ledgerEntry`, `exceptions`) and `exceptions` using `dbRepository.getRunDetails(runId)`.
+2. `GET /api/reconciliation/exceptions`: Returns recent exceptions across runs with filtering parameters (`?type=...`, `?priority=...`, `?resolved=...`, `?runId=...`).
+3. `PATCH /api/reconciliation/exceptions/[id]`: Updates exception resolution status (`resolved`, `resolvedBy`, `resolvedAt`, `resolutionNotes`) in PostgreSQL via `dbRepository.resolveException`.
 
 ---
 
 ### Checklist
 
-* [ ] Implement `GET /api/reconciliation/run/[id]` and `GET /api/reconciliation/exceptions` API routes
+* [ ] Implement `dbRepository.resolveException` and minimal API routes (`GET /api/reconciliation/run/[id]`, `GET /api/reconciliation/exceptions`, `PATCH /api/reconciliation/exceptions/[id]`)
 * [ ] Build Application Shell & Navigation Layout (Overview, Reconciliation, Exceptions, Runs)
-* [ ] Build Overview View (`/`) with KPI metrics, recent runs table, and exception breakdown
-* [ ] Build New Reconciliation Modal / Form (`/reconciliation/new`) with seed, AI toggle, and model info
-* [ ] Build Reconciliation Results View (`/reconciliation/[id]`) with dense financial table and filter tabs
+* [ ] Build Overview View (`/`) with dynamic KPI metrics, recent runs table, and exception breakdown
+* [ ] Build New Reconciliation Modal / Form (`/reconciliation/new`) with seed, AI toggle, model info, and dynamic source counts
+* [ ] Build Reconciliation Results View (`/reconciliation/[id]`) with dense financial table, filter tabs, and "AI Evaluated" tab
 * [ ] Build Record Detail Drawer (`sheet`) with Summary $\rightarrow$ Evidence $\rightarrow$ Decision pattern
-* [ ] Build Exception Queue View (`/exceptions`) with priority filters and discrepancy tables
-* [ ] Build Exception Detail Drawer (`sheet`) with Expected vs Observed discrepancy highlights
+* [ ] Build Exception Queue View (`/exceptions`) with priority filters, discrepancy tables, and resolution status
+* [ ] Build Exception Detail Drawer (`sheet`) with Expected vs Observed discrepancy highlights and backend `PATCH` review action
 * [ ] Implement responsive mobile card view transformations (<768px)
 * [ ] Verify loading, empty, and error states across all screens
 * [ ] Run typecheck (`npx tsc --noEmit`), lint (`npm run lint`), and production build (`npm run build`)
