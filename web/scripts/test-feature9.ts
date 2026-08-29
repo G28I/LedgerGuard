@@ -95,10 +95,12 @@ async function verifyFeature9() {
   console.log(`- Recomputed Precision: ${recomputed.precision}, Recall: ${recomputed.recall}, F1: ${recomputed.f1Score}`);
   console.log(`- Recomputed AI Promoted: ${recomputed.aiPromotedCount}, AI FP: ${recomputed.aiFalsePositiveCount}`);
 
-  if (recomputed.accuracy !== dbDetails.accuracy) {
-    throw new Error(`Verification Failed: DB persisted accuracy ${dbDetails.accuracy} != recomputed ${recomputed.accuracy}`);
+  const dbRunMetrics = dbDetails as { accuracy?: number | null; precision?: number | null; recall?: number | null; f1Score?: number | null };
+
+  if (recomputed.accuracy !== dbRunMetrics.accuracy) {
+    throw new Error(`Verification Failed: DB persisted accuracy ${dbRunMetrics.accuracy} != recomputed ${recomputed.accuracy}`);
   }
-  if (recomputed.precision !== dbDetails.precision || recomputed.recall !== dbDetails.recall || recomputed.f1Score !== dbDetails.f1Score) {
+  if (recomputed.precision !== dbRunMetrics.precision || recomputed.recall !== dbRunMetrics.recall || recomputed.f1Score !== dbRunMetrics.f1Score) {
     throw new Error('Verification Failed: DB persisted precision/recall/F1 do not match recomputed metrics!');
   }
   console.log('✓ Verified 100%: Persisted metrics match independently calculated metrics from decisions + groundTruthMap.');
