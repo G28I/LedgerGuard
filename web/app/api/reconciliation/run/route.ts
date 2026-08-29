@@ -7,6 +7,7 @@ import { dbRepository } from '@/features/db';
 const executeRunSchema = z.object({
   seed: z.number().int().optional(),
   batchName: z.string().min(1).max(100).optional(),
+  enableAI: z.boolean().optional(),
 });
 
 /**

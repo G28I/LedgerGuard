@@ -1,7 +1,11 @@
 import { dbRepository } from '@/features/db';
 import { generateSyntheticBenchmarkBatch, DEFAULT_BENCHMARK_SEED } from '@/features/synthetic';
 import { runReconciliationEngine } from './engine';
-import type { ExecuteRunParams, ReconciliationRunSummaryResponse } from './types';
+import { generateCandidatePairs } from './candidates';
+import { calculateVendorSimilarity } from './normalize';
+import { DEFAULT_RECONCILIATION_POLICY } from './types';
+import type { ReconciliationPolicyConfig, ExecuteRunParams, ReconciliationRunSummaryResponse } from './types';
+import { resolveAmbiguityWithAI } from '@/features/ai';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -73,13 +77,112 @@ export const reconciliationService = {
       // 4. Transition Run to PROCESSING
       await dbRepository.updateRunStatus(runRecord.id, 'PROCESSING');
 
+      const policy: ReconciliationPolicyConfig = {
+        ...DEFAULT_RECONCILIATION_POLICY,
+        ...params.policyConfig,
+      };
+
       // 5. Execute Pure Domain Engine (Side-Effect-Free)
       const decisions = runReconciliationEngine(
         dataset.sourceRecords.invoices,
         dataset.sourceRecords.bankTransactions,
         dataset.sourceRecords.ledgerEntries,
-        params.policyConfig
+        policy
       );
+
+      let aiCallCount = 0;
+      const aiMetadataMap = new Map<string, { model: string; reasoning: string; keyEvidence: string[]; promptDurationMs: number }>();
+
+      // 5b. AI Ambiguity Resolution (Downstream of Deterministic Engine)
+      if (params.enableAI) {
+        const candidatesMap = generateCandidatePairs(
+          dataset.sourceRecords.invoices,
+          dataset.sourceRecords.bankTransactions,
+          dataset.sourceRecords.ledgerEntries,
+          policy
+        );
+
+        for (let i = 0; i < decisions.length; i++) {
+          const d = decisions[i];
+          if (!d.invoiceId) continue;
+
+          // Invariant Safety Check: Only UNRESOLVED records are eligible for AI resolution.
+          // Deterministic MATCHED records and hard financial MISMATCH records are NEVER processed by AI!
+          if (d.status === 'MATCHED' || d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' || d.reasonCode === 'AMOUNT_MISMATCH') {
+            continue;
+          }
+
+          // Skip zero candidate cases (MISSING_RECORD) and duplicate payment safety flags
+          if (d.reasonCode === 'MISSING_RECORD' || d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED') {
+            continue;
+          }
+
+          const invoiceObj = dataset.sourceRecords.invoices.find((inv) => inv.id === d.invoiceId);
+          let candidates = candidatesMap.get(d.invoiceId) ?? [];
+
+          // If candidates map is empty, retrieve plausible bank transaction candidates within policy date window
+          if (candidates.length === 0 && invoiceObj) {
+            candidates = dataset.sourceRecords.bankTransactions
+              .filter((tx) => {
+                const dateDeltaDays = Math.round((tx.transactionDate.getTime() - invoiceObj.issueDate.getTime()) / (1000 * 60 * 60 * 24));
+                const amountDeltaCents = Math.abs(tx.amountCents - invoiceObj.amountCents);
+                return (
+                  dateDeltaDays >= policy.dateWindowDays.minDaysBefore &&
+                  dateDeltaDays <= policy.dateWindowDays.maxDaysAfter &&
+                  (amountDeltaCents <= policy.maxAllowedFeeDeltaCents || amountDeltaCents <= invoiceObj.amountCents * 0.10)
+                );
+              })
+              .map((tx) => ({
+                invoice: invoiceObj,
+                bankTx: tx,
+                ledgerEntry: null,
+                matchScore: 0.50,
+                amountDeltaCents: tx.amountCents - invoiceObj.amountCents,
+                dateDeltaDays: Math.round((tx.transactionDate.getTime() - invoiceObj.issueDate.getTime()) / (1000 * 60 * 60 * 24)),
+                vendorSimilarity: calculateVendorSimilarity(invoiceObj.vendorName, tx.description),
+                hasExactRefMatch: false,
+              }));
+            candidates.sort((a, b) => b.vendorSimilarity - a.vendorSimilarity);
+          }
+
+          if (invoiceObj && candidates.length > 0) {
+            aiCallCount++;
+
+            const aiResult = await resolveAmbiguityWithAI(invoiceObj, candidates, d, policy);
+
+            aiMetadataMap.set(d.invoiceId, {
+              model: aiResult.actualModelUsed,
+              reasoning: aiResult.reasoning,
+              keyEvidence: aiResult.keyEvidence,
+              promptDurationMs: aiResult.promptDurationMs,
+            });
+
+            if (aiResult.status === 'MATCHED' && aiResult.selectedBankTxId) {
+              // Promote to MATCHED with AI method
+              decisions[i] = {
+                ...d,
+                status: 'MATCHED',
+                method: 'AI',
+                ruleStrength: 'FUZZY_HIGH',
+                confidence: aiResult.confidenceScore,
+                bankTransactionId: aiResult.selectedBankTxId,
+                reasonCode: 'AI_ASSISTED_MATCH',
+                explanation: `AI-Assisted Resolution (${aiResult.actualModelUsed}): ${aiResult.reasoning}`,
+                exceptions: [], // Clear unresolved exception on successful AI match
+              };
+            } else if (aiResult.exceptionType) {
+              // Provider or Zod error -> Append Exception while preserving UNRESOLVED status
+              decisions[i].exceptions.push({
+                type: aiResult.exceptionType,
+                priority: 'HIGH',
+                reason: aiResult.exceptionReason ?? 'AI resolution provider error',
+                expectedValue: 'Valid JSON response from OpenRouter',
+                observedValue: aiResult.reasoning,
+              });
+            }
+          }
+        }
+      }
 
       const endTime = Date.now();
       const durationMs = Math.max(1, endTime - startTime);
@@ -116,27 +219,35 @@ export const reconciliationService = {
       const accuracyPercentage = Number(((correctGroundTruthCount / dataset.totalCases) * 100).toFixed(2));
 
       // 7. Atomic Transaction Persistence (Results & Exceptions)
-      const resultsToPersist = decisions.map((d) => ({
-        runId: runRecord.id,
-        invoiceId: d.invoiceId,
-        bankTransactionId: d.bankTransactionId,
-        ledgerEntryId: d.ledgerEntryId,
-        status: d.status,
-        method: d.method,
-        aiUsed: false,
-        confidence: d.confidence,
-        amountDeltaCents: d.amountDeltaCents,
-        reasonCode: d.reasonCode,
-        explanation: d.explanation,
-        evidenceJson: (d.evidenceJson as unknown) as Prisma.InputJsonValue,
-        exceptions: d.exceptions.map((exc) => ({
-          type: exc.type,
-          priority: exc.priority,
-          reason: exc.reason,
-          expectedValue: exc.expectedValue,
-          observedValue: exc.observedValue,
-        })),
-      }));
+      const resultsToPersist = decisions.map((d) => {
+        const aiMeta = d.invoiceId ? aiMetadataMap.get(d.invoiceId) : undefined;
+        const aiMetadataJson = aiMeta
+          ? ((aiMeta as unknown) as Prisma.InputJsonValue)
+          : undefined;
+
+        return {
+          runId: runRecord.id,
+          invoiceId: d.invoiceId,
+          bankTransactionId: d.bankTransactionId,
+          ledgerEntryId: d.ledgerEntryId,
+          status: d.status,
+          method: d.method,
+          aiUsed: d.method === 'AI',
+          confidence: d.confidence,
+          amountDeltaCents: d.amountDeltaCents,
+          reasonCode: d.reasonCode,
+          explanation: d.explanation,
+          evidenceJson: (d.evidenceJson as unknown) as Prisma.InputJsonValue,
+          aiMetadataJson,
+          exceptions: d.exceptions.map((exc) => ({
+            type: exc.type,
+            priority: exc.priority,
+            reason: exc.reason,
+            expectedValue: exc.expectedValue,
+            observedValue: exc.observedValue,
+          })),
+        };
+      });
 
       const persistedResults = await dbRepository.persistRunResultsAndExceptionsTransaction(resultsToPersist);
 
@@ -145,7 +256,7 @@ export const reconciliationService = {
         matchedCount,
         unresolvedCount,
         exceptionCount: totalExceptions,
-        aiCallCount: 0,
+        aiCallCount,
         accuracy: accuracyPercentage,
         resolutionRate,
         durationMs,
@@ -169,7 +280,7 @@ export const reconciliationService = {
         matchedCount,
         unresolvedCount,
         exceptionCount: totalExceptions,
-        aiCallCount: 0,
+        aiCallCount,
         resolutionRate,
         accuracyPercentage,
         durationMs,

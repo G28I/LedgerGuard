@@ -177,6 +177,7 @@ export const dbRepository = {
       reasonCode: string;
       explanation: string;
       evidenceJson?: Prisma.InputJsonValue;
+      aiMetadataJson?: Prisma.InputJsonValue;
       exceptions: Array<{
         type: ExceptionType;
         priority?: ExceptionPriority;
@@ -205,6 +206,7 @@ export const dbRepository = {
               reasonCode: res.reasonCode,
               explanation: res.explanation,
               evidenceJson: res.evidenceJson !== undefined ? res.evidenceJson : Prisma.DbNull,
+              aiMetadataJson: res.aiMetadataJson !== undefined ? res.aiMetadataJson : Prisma.DbNull,
             },
           });
 

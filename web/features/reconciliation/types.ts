@@ -122,6 +122,7 @@ export interface ReconciliationDecision {
 export interface ExecuteRunParams {
   seed?: number;
   batchName?: string;
+  enableAI?: boolean;
   policyConfig?: Partial<ReconciliationPolicyConfig>;
 }
 
