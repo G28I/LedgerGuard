@@ -117,6 +117,21 @@ export const dbRepository = {
     return prisma.exception.create({ data });
   },
 
+  async updateRunStatus(
+    runId: string,
+    status: RunStatus
+  ): Promise<ReconciliationRun | null> {
+    try {
+      return await prisma.reconciliationRun.update({
+        where: { id: runId },
+        data: { status },
+      });
+    } catch (err) {
+      console.error(`[dbRepository] Server-side log: Failed to update run ${runId} status to ${status}:`, err);
+      return null;
+    }
+  },
+
   async completeRun(
     runId: string,
     metrics: {
@@ -129,14 +144,91 @@ export const dbRepository = {
       durationMs: number;
       status: RunStatus;
     }
-  ): Promise<ReconciliationRun> {
-    return prisma.reconciliationRun.update({
-      where: { id: runId },
-      data: {
-        ...metrics,
-        completedAt: new Date(),
+  ): Promise<ReconciliationRun | null> {
+    try {
+      return await prisma.reconciliationRun.update({
+        where: { id: runId },
+        data: {
+          ...metrics,
+          completedAt: new Date(),
+        },
+      });
+    } catch (err) {
+      console.error(`[dbRepository] Server-side log: Failed to complete run ${runId}:`, err);
+      return null;
+    }
+  },
+
+  /**
+   * Atomic Transaction Persistence for Run Results & Exceptions
+   * Ensures either ALL results and exceptions for a run are persisted, or NONE are (no partial rows).
+   */
+  async persistRunResultsAndExceptionsTransaction(
+    resultsData: Array<{
+      runId: string;
+      invoiceId?: string | null;
+      bankTransactionId?: string | null;
+      ledgerEntryId?: string | null;
+      status: ResultStatus;
+      method: MatchMethod;
+      aiUsed?: boolean;
+      confidence?: number | null;
+      amountDeltaCents?: number;
+      reasonCode: string;
+      explanation: string;
+      evidenceJson?: Prisma.InputJsonValue;
+      exceptions: Array<{
+        type: ExceptionType;
+        priority?: ExceptionPriority;
+        reason: string;
+        expectedValue?: string;
+        observedValue?: string;
+      }>;
+    }>
+  ) {
+    return prisma.$transaction(
+      async (tx) => {
+        const persistedResults = [];
+
+        for (const res of resultsData) {
+          const resultRecord = await tx.reconciliationResult.create({
+            data: {
+              runId: res.runId,
+              invoiceId: res.invoiceId,
+              bankTransactionId: res.bankTransactionId,
+              ledgerEntryId: res.ledgerEntryId,
+              status: res.status,
+              method: res.method,
+              aiUsed: res.aiUsed ?? false,
+              confidence: res.confidence,
+              amountDeltaCents: res.amountDeltaCents ?? 0,
+              reasonCode: res.reasonCode,
+              explanation: res.explanation,
+              evidenceJson: res.evidenceJson !== undefined ? res.evidenceJson : Prisma.DbNull,
+            },
+          });
+
+          for (const exc of res.exceptions) {
+            await tx.exception.create({
+              data: {
+                runId: res.runId,
+                resultId: resultRecord.id,
+                type: exc.type,
+                priority: exc.priority ?? 'MEDIUM',
+                reason: exc.reason,
+                expectedValue: exc.expectedValue,
+                observedValue: exc.observedValue,
+              },
+            });
+          }
+
+          persistedResults.push(resultRecord);
+        }
+
+        return persistedResults;
       },
-    });
+      { timeout: 30000, maxWait: 10000 }
+    );
   },
 
   // Historical Run & Audit Queries

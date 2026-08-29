@@ -52,7 +52,7 @@ If a sketch contradicts a written product decision here, stop and resolve the co
 | 3  | Financial data model                       | Foundation | completed   |
 | 4  | Reconciliation domain model & rules        | Foundation | completed   |
 | 5  | Synthetic benchmark generator              | Foundation | completed   |
-| 6  | Thin end-to-end reconciliation slice       | Slice 1    | not started |
+| 6  | Thin end-to-end reconciliation slice       | Slice 1    | completed   |
 | 7  | AI ambiguity resolver                      | Slice 2    | not started |
 | 8  | Reconciliation dashboard & exception queue | Slice 3    | not started |
 | 9  | Benchmarking, metrics & audit trail        | Slice 4    | not started |
@@ -416,16 +416,16 @@ Next.js API Route & Response Contract (app/api/reconciliation/run/route.ts)
 
 ### Checklist
 
-* [ ] Implement application orchestration service in `features/reconciliation/service.ts`
-* [ ] Implement API response contract types in `features/reconciliation/types.ts`
-* [ ] Implement Next.js API route `POST /api/reconciliation/run` in `app/api/reconciliation/run/route.ts`
-* [ ] Implement Next.js API route `GET /api/reconciliation/run` in `app/api/reconciliation/run/route.ts`
-* [ ] Verify source records are ingested into PostgreSQL without mutation
-* [ ] Verify atomic transaction persistence of run, results, and exceptions
-* [ ] Verify run status lifecycle transition (`PENDING` → `PROCESSING` → `COMPLETED`)
-* [ ] Verify throughput and duration calculation
-* [ ] Execute the full 200-case benchmark through the API
-* [ ] Verify `npm run check` (typecheck + lint) and `npm run build` pass cleanly
+* [x] Implement application orchestration service in `features/reconciliation/service.ts`
+* [x] Implement API response contract types in `features/reconciliation/types.ts`
+* [x] Implement Next.js API route `POST /api/reconciliation/run` in `app/api/reconciliation/run/route.ts`
+* [x] Implement Next.js API route `GET /api/reconciliation/run` in `app/api/reconciliation/run/route.ts`
+* [x] Verify source records are ingested into PostgreSQL without mutation
+* [x] Verify atomic transaction persistence of run, results, and exceptions
+* [x] Verify run status lifecycle transition (`PENDING` → `PROCESSING` → `COMPLETED`)
+* [x] Verify throughput and duration calculation
+* [x] Execute the full 200-case benchmark through the API
+* [x] Verify `npm run check` (typecheck + lint) and `npm run build` pass cleanly
 
 ---
 

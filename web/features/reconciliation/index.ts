@@ -1,6 +1,6 @@
 /**
  * Reconciliation Feature Domain
- * Pure, side-effect-free domain logic for multi-source financial reconciliation.
+ * Pure domain logic and application orchestration service for financial reconciliation.
  */
 export const RECONCILIATION_FEATURE_VERSION = '1.0.0';
 
@@ -29,6 +29,8 @@ export type {
   ReconciliationPolicyConfig,
   RuleStrength,
   ExceptionDetailPackage,
+  ExecuteRunParams,
+  ReconciliationRunSummaryResponse,
 } from './types';
 
 export { DEFAULT_RECONCILIATION_POLICY } from './types';
@@ -47,6 +49,9 @@ export { generateCandidatePairs } from './candidates';
 
 // Reconciliation Pipeline Engine
 export { runReconciliationEngine } from './engine';
+
+// Application Orchestration Service
+export { reconciliationService } from './service';
 
 // Edge Cases Verification Runner
 export { runFeature4EdgeCasesVerification } from './verify-feature4';

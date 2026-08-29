@@ -115,3 +115,49 @@ export interface ReconciliationDecision {
   evidenceJson: Record<string, unknown>;
   exceptions: ExceptionDetailPackage[];
 }
+
+/**
+ * Parameters for executing a Reconciliation Run
+ */
+export interface ExecuteRunParams {
+  seed?: number;
+  batchName?: string;
+  policyConfig?: Partial<ReconciliationPolicyConfig>;
+}
+
+/**
+ * Stable Typed Response Contract for Reconciliation Run Execution (UI & API)
+ */
+export interface ReconciliationRunSummaryResponse {
+  runId: string;
+  runNumber: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  totalRecords: number;
+  matchedCount: number;
+  unresolvedCount: number;
+  exceptionCount: number;
+  aiCallCount: number;
+  resolutionRate: number; // 0.0 to 1.0
+  accuracyPercentage?: number | null; // Offline benchmark ground truth score if applicable
+  durationMs: number;
+  throughputRecordsPerSec: number;
+  startedAt: string;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  resultsSummary: Array<{
+    id: string;
+    invoiceRef?: string;
+    bankRef?: string;
+    status: ResultStatus;
+    method: MatchMethod;
+    reasonCode: string;
+    amountDeltaCents: number;
+  }>;
+  exceptionsSummary: Array<{
+    id: string;
+    type: ExceptionType;
+    priority: ExceptionPriority;
+    reason: string;
+  }>;
+}
+
