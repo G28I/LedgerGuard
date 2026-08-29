@@ -267,4 +267,92 @@ export const dbRepository = {
       },
     });
   },
+
+  async getLatestCompletedRun() {
+    return prisma.reconciliationRun.findFirst({
+      where: { status: 'COMPLETED' },
+      orderBy: { completedAt: 'desc' },
+      include: {
+        _count: {
+          select: { results: true, exceptions: true },
+        },
+      },
+    });
+  },
+
+  async getOverviewMetrics() {
+    const latestRun = await this.getLatestCompletedRun();
+    const recentRuns = await this.getRecentRuns(5);
+
+    // Group open exceptions by type from latest run or across all runs
+    const exceptionBreakdownRaw = await prisma.exception.groupBy({
+      by: ['type'],
+      where: latestRun ? { runId: latestRun.id, resolved: false } : { resolved: false },
+      _count: { type: true },
+    });
+
+    const exceptionBreakdown: Record<string, number> = {};
+    exceptionBreakdownRaw.forEach((group) => {
+      exceptionBreakdown[group.type] = group._count.type;
+    });
+
+    return {
+      latestRun,
+      recentRuns,
+      exceptionBreakdown,
+    };
+  },
+
+  async getExceptions(filter?: {
+    type?: ExceptionType;
+    priority?: ExceptionPriority;
+    resolved?: boolean;
+    runId?: string;
+    limit?: number;
+  }) {
+    const where: Prisma.ExceptionWhereInput = {};
+    if (filter?.type) where.type = filter.type;
+    if (filter?.priority) where.priority = filter.priority;
+    if (filter?.resolved !== undefined) where.resolved = filter.resolved;
+    if (filter?.runId) where.runId = filter.runId;
+
+    return prisma.exception.findMany({
+      where,
+      take: filter?.limit ?? 100,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        run: true,
+        result: {
+          include: {
+            invoice: true,
+            bankTransaction: true,
+            ledgerEntry: true,
+          },
+        },
+      },
+    });
+  },
+
+  async resolveException(
+    exceptionId: string,
+    data: {
+      resolvedBy: string;
+      resolutionNotes?: string;
+    }
+  ): Promise<Exception | null> {
+    try {
+      return await prisma.exception.update({
+        where: { id: exceptionId },
+        data: {
+          resolved: true,
+          resolvedBy: data.resolvedBy,
+          resolvedAt: new Date(),
+          resolutionNotes: data.resolutionNotes ?? null,
+        },
+      });
+    } catch (err) {
+      console.error(`[dbRepository] Server-side log: Failed to resolve exception ${exceptionId}:`, err);
+      return null;
+    }
+  },
 };

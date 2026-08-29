@@ -54,7 +54,7 @@ If a sketch contradicts a written product decision here, stop and resolve the co
 | 5  | Synthetic benchmark generator              | Foundation | completed   |
 | 6  | Thin end-to-end reconciliation slice       | Slice 1    | completed   |
 | 7  | AI ambiguity resolver                      | Slice 2    | completed   |
-| 8  | Reconciliation dashboard & exception queue | Slice 3    | not started |
+| 8  | Reconciliation dashboard & exception queue | Slice 3    | completed   |
 | 9  | Benchmarking, metrics & audit trail        | Slice 4    | not started |
 | 10 | Failure recovery & hardening               | Slice 5    | not started |
 
@@ -720,17 +720,17 @@ To support this UI architecture strictly from backend contracts, we will add 3 c
 
 ### Checklist
 
-* [ ] Implement `dbRepository.resolveException` and minimal API routes (`GET /api/reconciliation/run/[id]`, `GET /api/reconciliation/exceptions`, `PATCH /api/reconciliation/exceptions/[id]`)
-* [ ] Build Application Shell & Navigation Layout (Overview, Reconciliation, Exceptions, Runs)
-* [ ] Build Overview View (`/`) with dynamic KPI metrics, recent runs table, and exception breakdown
-* [ ] Build New Reconciliation Modal / Form (`/reconciliation/new`) with seed, AI toggle, model info, and dynamic source counts
-* [ ] Build Reconciliation Results View (`/reconciliation/[id]`) with dense financial table, filter tabs, and "AI Evaluated" tab
-* [ ] Build Record Detail Drawer (`sheet`) with Summary $\rightarrow$ Evidence $\rightarrow$ Decision pattern
-* [ ] Build Exception Queue View (`/exceptions`) with priority filters, discrepancy tables, and resolution status
-* [ ] Build Exception Detail Drawer (`sheet`) with Expected vs Observed discrepancy highlights and backend `PATCH` review action
-* [ ] Implement responsive mobile card view transformations (<768px)
-* [ ] Verify loading, empty, and error states across all screens
-* [ ] Run typecheck (`npx tsc --noEmit`), lint (`npm run lint`), and production build (`npm run build`)
+* [x] Implement `dbRepository.resolveException`, `getExceptions`, `getLatestCompletedRun`, and minimal API routes (`GET /api/reconciliation/run/[id]`, `GET /api/reconciliation/exceptions`, `PATCH /api/reconciliation/exceptions/[id]`, `GET /api/reconciliation/overview`)
+* [x] Build Application Shell & Navigation Layout (Overview, Reconciliation, Exceptions, Runs)
+* [x] Build Overview View (`/`) with dynamic KPI metrics from latest COMPLETED run, recent runs table, and exception breakdown
+* [x] Build New Reconciliation Modal / Form (`/reconciliation/new`) with seed, AI toggle, model info, and dynamic source counts
+* [x] Build Reconciliation Results View (`/reconciliation/[id]`) with dense financial table, filter tabs, and "AI Evaluated" tab
+* [x] Build Record Detail Drawer (`sheet`) with Summary $\rightarrow$ Evidence $\rightarrow$ Decision pattern and ESC key accessibility
+* [x] Build Exception Queue View (`/exceptions`) with priority filters, discrepancy tables, and resolution status
+* [x] Build Exception Detail Drawer (`sheet`) with Expected vs Observed discrepancy highlights and backend `PATCH` review action (persisting `resolvedBy: 'DEMO_OPERATOR'`)
+* [x] Implement responsive mobile card view transformations (<768px)
+* [x] Verify loading, empty, and error states across all screens
+* [x] Run typecheck (`npx tsc --noEmit`), lint (`npm run lint`), production build (`npm run build`), and browser subagent workflow verification
 
 ---
 
