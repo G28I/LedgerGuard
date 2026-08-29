@@ -2,7 +2,6 @@ import { generateSyntheticBenchmarkBatch } from '../features/synthetic';
 import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY } from '../features/reconciliation';
 import { generateCandidatePairs } from '../features/reconciliation/candidates';
 import { resolveAmbiguityWithAI } from '../features/ai';
-import { calculateVendorSimilarity } from '../features/reconciliation/normalize';
 
 async function testProposedFix() {
   console.log('🧪 Testing Proposed Feature 7 Safety Gate Fix...\n');
@@ -65,8 +64,8 @@ async function testProposedFix() {
       if (aiResult.status === 'MATCHED') {
         promotedMatches++;
         const isGtMatch = gt?.expectedStatus === 'MATCHED' && (
-          gt.expectedMatchedRecordIds?.bankTransactionId === null || 
-          gt.expectedMatchedRecordIds?.bankTransactionId === aiResult.selectedBankTxId
+          gt.expectedMatchedBankTxId === null || 
+          gt.expectedMatchedBankTxId === aiResult.selectedBankTxId
         );
         if (isGtMatch) correctPromotions++;
         else falsePositives++;

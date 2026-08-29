@@ -96,8 +96,8 @@ async function analyzeAiPromotions() {
         promotedMatches++;
 
         const isGtMatch = gt?.expectedStatus === 'MATCHED' && (
-          gt.expectedMatchedRecordIds?.bankTransactionId === null || 
-          gt.expectedMatchedRecordIds?.bankTransactionId === aiResult.selectedBankTxId
+          gt.expectedMatchedBankTxId === null || 
+          gt.expectedMatchedBankTxId === aiResult.selectedBankTxId
         );
 
         if (isGtMatch) {
@@ -145,7 +145,7 @@ async function analyzeAiPromotions() {
         aiStatus: aiResult.status,
         selectedTxId: aiResult.selectedBankTxId,
         gtStatus: gt?.expectedStatus,
-        gtBankTxId: gt?.expectedMatchedRecordIds?.bankTransactionId ?? null,
+        gtBankTxId: gt?.expectedMatchedBankTxId ?? null,
         gtScenarioType: gt?.scenarioType,
         isCorrect: aiResult.status === gt?.expectedStatus,
       });
@@ -178,7 +178,7 @@ async function analyzeAiPromotions() {
     console.log(`- Deterministic Reason Code: ${item.deterministicReasonCode}`);
     console.log(`- Model Confidence Signal: ${item.modelConfidence}`);
     console.log(`- Model Reasoning: ${item.modelReasoning}`);
-    console.log(`- Ground Truth Scenario: Type="${item.groundTruth?.scenarioType}", ExpectedStatus="${item.groundTruth?.expectedStatus}", ExpectedBankTxId="${item.groundTruth?.expectedMatchedRecordIds?.bankTransactionId ?? 'null'}", ExpectedException="${item.groundTruth?.expectedExceptionType}"`);
+    console.log(`- Ground Truth Scenario: Type="${item.groundTruth?.scenarioType}", ExpectedStatus="${item.groundTruth?.expectedStatus}", ExpectedBankTxId="${item.groundTruth?.expectedMatchedBankTxId ?? 'null'}", ExpectedException="${item.groundTruth?.expectedExceptionType}"`);
     console.log(`- Top Candidate Evidence Package:`, JSON.stringify(item.alternativeCandidates, null, 2));
   });
 
