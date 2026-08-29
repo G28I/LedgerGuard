@@ -356,45 +356,76 @@ The synthetic benchmark generator provides reproducible multi-source financial d
 
 ## 6. Thin end-to-end reconciliation slice
 
-Before adding AI, dashboards, or complex automation, prove that the whole reconciliation loop works.
-
-The first slice should:
+The thin slice connects all foundation layers into one executable, auditable end-to-end reconciliation workflow without AI dependencies.
 
 ```text
-Load synthetic records
+Pure Domain Engine (features/reconciliation/)
         ↓
-Normalize them
+Application Orchestration (features/reconciliation/service.ts)
         ↓
-Run deterministic reconciliation
+Prisma & PostgreSQL Persistence (features/db/repository.ts)
         ↓
-Persist results
-        ↓
-Produce a basic result summary
+Next.js API Route & Response Contract (app/api/reconciliation/run/route.ts)
 ```
 
-The goal is not completeness.
+### Architecture & Service Boundaries
 
-The goal is proving that:
+#### 1. Application Service Layer (`features/reconciliation/service.ts`)
+- **`reconciliationService.executeRun(params)`**:
+  - Accepts `{ seed?: number; batchName?: string }`.
+  - Generates or loads the 200-case synthetic benchmark batch via `generateSyntheticBenchmarkBatch({ seed })`.
+  - Ingests append-only source records into PostgreSQL using `dbRepository.createInvoices`, `createBankTransactions`, `createLedgerEntries`.
+  - Creates a `ReconciliationRun` record in PostgreSQL with `status: PENDING`.
+  - Transitions `ReconciliationRun` to `status: PROCESSING`.
+  - Executes pure `runReconciliationEngine` (0 side-effects).
+  - Measures execution duration (`durationMs`) and throughput (`totalRecords / (durationMs / 1000)`).
+  - Maps domain `ReconciliationDecision` objects into database `ReconciliationResult` and `Exception` rows.
+  - Persists all results and exceptions in a single database transaction (`prisma.$transaction`).
+  - Calculates run-level metrics (`matchedCount`, `unresolvedCount`, `exceptionCount`, `resolutionRate`, `durationMs`).
+  - Transitions `ReconciliationRun` to `status: COMPLETED` (or `status: FAILED` on error).
 
-* the data model works
-* reconciliation logic works
-* source records remain intact
-* results are persisted
-* exceptions can be represented
-* a complete batch can be processed
+#### 2. Source Record & Run Association
+- Source records in PostgreSQL remain 100% append-only and unmutated.
+- `ReconciliationResult` rows reference `runId` and optional foreign keys (`invoiceId`, `bankTransactionId`, `ledgerEntryId`).
+- Multiple runs can reference the same source records over time without data duplication or mutation.
 
-Do not optimize the UI at this stage.
+#### 3. Transaction Safety & Failure Handling
+- Result and Exception database insertions are wrapped in an atomic `prisma.$transaction`.
+- If persistence fails, the run is updated to `status: FAILED` with error details logged in `ReconciliationRun`, preventing orphaned or partial result rows.
+
+#### 4. API Entry Point & Minimal UI Contract
+- **API Route**: `POST /api/reconciliation/run`
+  - Request: `{ "seed": 42, "batchName": "Benchmark Run 42" }`
+  - Response (`ReconciliationRunSummaryResponse`):
+    - `runId`: string
+    - `runNumber`: string
+    - `status`: `COMPLETED` | `FAILED`
+    - `totalRecords`: number
+    - `matchedCount`: number
+    - `unresolvedCount`: number
+    - `exceptionCount`: number
+    - `resolutionRate`: number (0.0 to 1.0)
+    - `durationMs`: number
+    - `throughputRecordsPerSec`: number
+    - `startedAt`: ISO date string
+    - `completedAt`: ISO date string
+    - `resultsSummary`: Array of top results
+    - `exceptionsSummary`: Array of top exceptions
+- **API Route**: `GET /api/reconciliation/run`
+  - Lists recent reconciliation runs and details.
 
 ### Checklist
 
-* [ ] Load benchmark data
-* [ ] Normalize records
-* [ ] Run reconciliation
-* [ ] Persist the reconciliation run
-* [ ] Persist individual results
-* [ ] Persist exceptions
-* [ ] Produce a basic summary
-* [ ] Process the full benchmark successfully
+* [ ] Implement application orchestration service in `features/reconciliation/service.ts`
+* [ ] Implement API response contract types in `features/reconciliation/types.ts`
+* [ ] Implement Next.js API route `POST /api/reconciliation/run` in `app/api/reconciliation/run/route.ts`
+* [ ] Implement Next.js API route `GET /api/reconciliation/run` in `app/api/reconciliation/run/route.ts`
+* [ ] Verify source records are ingested into PostgreSQL without mutation
+* [ ] Verify atomic transaction persistence of run, results, and exceptions
+* [ ] Verify run status lifecycle transition (`PENDING` → `PROCESSING` → `COMPLETED`)
+* [ ] Verify throughput and duration calculation
+* [ ] Execute the full 200-case benchmark through the API
+* [ ] Verify `npm run check` (typecheck + lint) and `npm run build` pass cleanly
 
 ---
 
