@@ -858,6 +858,54 @@ These numbers are examples only. Never hard-code them into the product.
 
 ---
 
+### Pre-Judging Audit Findings & Hardening Plan
+
+#### Strengths to Preserve (Do NOT Modify)
+1. **Pure Reconciliation Engine**: `runReconciliationEngine` in `engine.ts` is 100% deterministic, side-effect-free, and preserves 120/120 deterministic matches across all runs.
+2. **Financial Safety Policy Gate**: Application-side safety checks in `resolver.ts` (Candidate Membership, Min Confidence 0.80, Fee Tolerance $5.00, Date Window, Currency, Candidate Separation Safety Rule for 5% tie) independently validate model predictions.
+3. **Strict Ground-Truth Isolation**: Runtime reconciliation service, engine, API, and AI resolver have 0 access to ground truth. Offline scoring occurs exclusively via `scoreBenchmarkRun`.
+4. **Atomic Database Transactions**: `persistRunResultsAndExceptionsTransaction` guarantees all results/exceptions write atomically or rollback completely.
+5. **Static Baseline Trajectory**: `FEATURE7_BASELINE_SNAPSHOTS` preserves historical research milestones cleanly.
+
+#### Prioritized Audit Findings
+
+##### P0 = Must Fix Before Judging (Critical Correctness & Safety)
+1. **P0-1: Unscaled Metric Ratio Formatting on Overview (`/`) and Runs (`/runs`) Pages**
+   - **File**: `web/app/page.tsx` (lines 193, 308) & `web/app/runs/page.tsx` (line 110).
+   - **Problem**: Feature 9 normalized internal database metrics to ratios (e.g. `0.9250`). `app/page.tsx` and `app/runs/page.tsx` render `${run.accuracy}%` directly, displaying `0.925%` instead of `92.5%`.
+   - **Fix**: Format as `${(run.accuracy * 100).toFixed(1)}%`.
+2. **P0-2: Hardcoded AI Evaluated Fallback in Reconciliation Results View (`/reconciliation/[id]`)**
+   - **File**: `web/app/reconciliation/[id]/page.tsx` (line 301).
+   - **Problem**: Renders `{data.aiEvaluatedCount ?? 26}` statically in banner.
+   - **Fix**: Replace fallback `{data.aiEvaluatedCount ?? 26}` with computed `aiEvaluatedCount`.
+3. **P0-3: Record Detail Drawer Static Audit Card Missing `isBenchmark` Context**
+   - **File**: `web/components/RecordDetailDrawer.tsx` (line 272).
+   - **Problem**: Renders Ground-Truth Audit Card unconditionally on operational runs where ground truth does not exist.
+   - **Fix**: Pass optional `isBenchmark?: boolean` prop from parent page and wrap Section 4 in `if (isBenchmark)`.
+4. **P0-4: Unauthenticated Identity Auditing in Exception Resolution Route**
+   - **File**: `web/app/api/reconciliation/exceptions/[id]/route.ts` (line 41).
+   - **Problem**: Fallback identity is hardcoded as `'DEMO_OPERATOR'`.
+   - **Fix**: Require `resolvedBy` in request schema or explicitly document system fallback behavior.
+
+##### P1 = Strongly Recommended (Failure Recovery & UI Alignment)
+5. **P1-1: OpenRouter Retries with Exponential Backoff for Rate Limits (HTTP 429)**
+   - **File**: `web/features/ai/openrouter.ts` (line 140).
+   - **Problem**: OpenRouter fails over immediately without retrying HTTP 429/5xx status codes.
+   - **Fix**: Implement 1 bounded retry with 1000ms delay on 429/5xx before fallback model.
+6. **P1-2: Exception Queue Limit & Pagination Controls**
+   - **File**: `web/app/exceptions/page.tsx` & `web/features/db/repository.ts`.
+   - **Problem**: Large exception sets can slow load times.
+   - **Fix**: Enforce `limit=100` parameter in fetch query and display UI limit indicator.
+7. **P1-3: Multi-Source Composition Visual Breakdown in Header**
+   - **File**: `web/app/page.tsx` & `web/docs/ui-reference.md`.
+   - **Problem**: Overview KPI header displays 200 records without showing source composition (200 Invoices, 200 Bank Txs, 80 Ledger Entries = 480 underlying records).
+   - **Fix**: Display source record composition pills in Overview header.
+
+##### P2 = Polish / Optional
+8. **P2-1: Clean up research script dead code in `web/scripts/`**.
+
+---
+
 # Slice 5: Failure recovery & hardening
 
 ## 10. Failure recovery & hardening
