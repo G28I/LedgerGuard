@@ -50,7 +50,7 @@ If a sketch contradicts a written product decision here, stop and resolve the co
 | 1  | Foundation and project setup               | Foundation | completed   |
 | 2  | Coding standards & tooling                 | Foundation | completed   |
 | 3  | Financial data model                       | Foundation | completed   |
-| 4  | Reconciliation domain model & rules        | Foundation | not started |
+| 4  | Reconciliation domain model & rules        | Foundation | completed   |
 | 5  | Synthetic benchmark generator              | Foundation | not started |
 | 6  | Thin end-to-end reconciliation slice       | Slice 1    | not started |
 | 7  | AI ambiguity resolver                      | Slice 2    | not started |
@@ -267,16 +267,16 @@ Decision Policy Gate → [MATCHED | MISMATCH | UNRESOLVED] + Exception List
 
 ### Checklist
 
-* [ ] Implement normalized record domain types in `features/reconciliation/types.ts`
-* [ ] Implement string & vendor normalization utility in `features/reconciliation/normalize.ts`
-* [ ] Implement candidate indexing and generation in `features/reconciliation/candidates.ts`
-* [ ] Implement Level 1 exact deterministic matching rules in `features/reconciliation/rules/exact.ts`
-* [ ] Implement Level 2 fuzzy matching and similarity scoring in `features/reconciliation/rules/fuzzy.ts`
-* [ ] Implement safety rules (duplicate detection, candidate ties, missing records) in `features/reconciliation/safety.ts`
-* [ ] Implement pure reconciliation engine pipeline in `features/reconciliation/engine.ts`
-* [ ] Write unit verification tests covering all 9 representative edge cases
-* [ ] Verify `npm run check` (typecheck + lint) passes cleanly
-* [ ] Verify decisions against representative cases
+* [x] Implement normalized record domain types in `features/reconciliation/types.ts`
+* [x] Implement string & vendor normalization utility in `features/reconciliation/normalize.ts`
+* [x] Implement candidate indexing and generation in `features/reconciliation/candidates.ts`
+* [x] Implement Level 1 exact deterministic matching rules in `features/reconciliation/rules/exact.ts`
+* [x] Implement Level 2 fuzzy matching and similarity scoring in `features/reconciliation/rules/fuzzy.ts`
+* [x] Implement safety rules (duplicate detection, candidate ties, missing records) in `features/reconciliation/safety.ts`
+* [x] Implement pure reconciliation engine pipeline in `features/reconciliation/engine.ts`
+* [x] Write unit verification tests covering all 9 representative edge cases
+* [x] Verify `npm run check` (typecheck + lint) passes cleanly
+* [x] Verify decisions against representative cases
 
 ---
 

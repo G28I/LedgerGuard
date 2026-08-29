@@ -1,6 +1,6 @@
 /**
  * Reconciliation Feature Domain
- * Pure domain logic for multi-source financial reconciliation.
+ * Pure, side-effect-free domain logic for multi-source financial reconciliation.
  */
 export const RECONCILIATION_FEATURE_VERSION = '1.0.0';
 
@@ -18,3 +18,35 @@ export function toCents(dollars: number): number {
 export function toDollarsString(cents: number): string {
   return (cents / 100).toFixed(2);
 }
+
+// Domain Models & Contracts
+export type {
+  NormalizedInvoice,
+  NormalizedBankTx,
+  NormalizedLedgerEntry,
+  CandidatePair,
+  ReconciliationDecision,
+  ReconciliationPolicyConfig,
+  RuleStrength,
+  ExceptionDetailPackage,
+} from './types';
+
+export { DEFAULT_RECONCILIATION_POLICY } from './types';
+
+// Text Normalization & Similarity
+export {
+  cleanRef,
+  normalizeVendorName,
+  extractReferenceToken,
+  calculateVendorSimilarity,
+  calculateDateDeltaDays,
+} from './normalize';
+
+// Candidate Generation
+export { generateCandidatePairs } from './candidates';
+
+// Reconciliation Pipeline Engine
+export { runReconciliationEngine } from './engine';
+
+// Edge Cases Verification Runner
+export { runFeature4EdgeCasesVerification } from './verify-feature4';
