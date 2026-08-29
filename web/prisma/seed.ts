@@ -1,5 +1,4 @@
-import { prisma } from '../lib/prisma';
-import { dbRepository } from '../features/db/repository';
+import { prisma, dbRepository } from '@/features/db';
 import { MatchMethod, ResultStatus, ExceptionType, ExceptionPriority, RunStatus } from '@prisma/client';
 
 async function main() {
