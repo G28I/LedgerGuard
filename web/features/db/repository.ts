@@ -143,6 +143,15 @@ export const dbRepository = {
       resolutionRate?: number;
       durationMs: number;
       status: RunStatus;
+      isBenchmark?: boolean;
+      aiEvaluatedCount?: number;
+      aiPromotedCount?: number;
+      aiFalsePositiveCount?: number;
+      deterministicMatchedCount?: number;
+      deterministicAccuracy?: number;
+      precision?: number;
+      recall?: number;
+      f1Score?: number;
     }
   ): Promise<ReconciliationRun | null> {
     try {
@@ -157,6 +166,13 @@ export const dbRepository = {
       console.error(`[dbRepository] Server-side log: Failed to complete run ${runId}:`, err);
       return null;
     }
+  },
+
+  async getBenchmarkRuns(): Promise<ReconciliationRun[]> {
+    return prisma.reconciliationRun.findMany({
+      where: { isBenchmark: true, status: 'COMPLETED' },
+      orderBy: { startedAt: 'desc' },
+    });
   },
 
   /**

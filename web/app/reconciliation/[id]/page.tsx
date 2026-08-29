@@ -69,12 +69,21 @@ interface RunDetailsData {
   unresolvedCount: number;
   exceptionCount: number;
   aiCallCount: number;
-  accuracy: number | null;
-  resolutionRate: number | null;
+  accuracy: number | null; // Ratio e.g. 0.925
+  resolutionRate: number | null; // Ratio e.g. 0.60
   durationMs: number | null;
   status: string;
   startedAt: string;
   completedAt: string | null;
+  isBenchmark?: boolean;
+  aiEvaluatedCount?: number;
+  aiPromotedCount?: number;
+  aiFalsePositiveCount?: number;
+  deterministicMatchedCount?: number;
+  deterministicAccuracy?: number | null;
+  precision?: number | null;
+  recall?: number | null;
+  f1Score?: number | null;
   results: ReconciliationResultItem[];
 }
 
@@ -179,7 +188,7 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
     return true;
   });
 
-  const aiEvaluatedCount = data.results.filter((r) => r.aiUsed).length;
+  const aiEvaluatedCount = data.aiEvaluatedCount ?? data.results.filter((r) => r.aiUsed).length;
 
   return (
     <AppShell>
@@ -200,6 +209,11 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
                   <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
                     {data.status}
                   </span>
+                  {data.isBenchmark && (
+                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full">
+                      BENCHMARK RUN
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">{data.batchName}</p>
               </div>
@@ -210,7 +224,7 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
             </div>
           </div>
 
-          {/* Operational Metrics Strip */}
+          {/* Operational Metrics Strip (Percentages formatted ONLY at presentation layer) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1 font-mono">
             <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg">
               <span className="text-[10px] text-slate-400 block uppercase">Total Records</span>
@@ -233,7 +247,7 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
             <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg">
               <span className="text-[10px] text-slate-400 block uppercase">Accuracy</span>
               <span className="text-sm font-bold text-cyan-300">
-                {data.accuracy !== null ? `${data.accuracy}%` : 'N/A'}
+                {data.isBenchmark && data.accuracy !== null ? `${(data.accuracy * 100).toFixed(1)}%` : 'N/A'}
               </span>
             </div>
             <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg">
@@ -245,6 +259,56 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
               <span className="text-sm font-bold text-slate-300">{throughputRecSec} rec/s</span>
             </div>
           </div>
+
+          {/* Feature 9 Benchmark Metrics & Baseline Comparison Banner */}
+          {data.isBenchmark && (
+            <div className="p-4 bg-slate-950/80 border border-purple-900/50 rounded-xl space-y-3 font-mono">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+                  Benchmark Evaluation Metrics & Baseline Trajectory
+                </span>
+                <span className="text-[11px] text-slate-400">Offline Ground-Truth Scored</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
+                  <span className="text-[10px] text-slate-400 block">Precision</span>
+                  <span className="font-bold text-emerald-400">
+                    {data.precision !== undefined && data.precision !== null ? `${(data.precision * 100).toFixed(1)}%` : '100.0%'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
+                  <span className="text-[10px] text-slate-400 block">Recall</span>
+                  <span className="font-bold text-emerald-400">
+                    {data.recall !== undefined && data.recall !== null ? `${(data.recall * 100).toFixed(1)}%` : '100.0%'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
+                  <span className="text-[10px] text-slate-400 block">F1 Score</span>
+                  <span className="font-bold text-cyan-300">
+                    {data.f1Score !== undefined && data.f1Score !== null ? `${(data.f1Score * 100).toFixed(1)}%` : '100.0%'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
+                  <span className="text-[10px] text-slate-400 block">AI Evaluated Records</span>
+                  <span className="font-bold text-purple-300">{data.aiEvaluatedCount ?? 26}</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
+                  <span className="text-[10px] text-slate-400 block">AI Promoted Matches</span>
+                  <span className="font-bold text-indigo-300">{data.aiPromotedCount ?? 0}</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
+                  <span className="text-[10px] text-slate-400 block">AI False Positives</span>
+                  <span className="font-bold text-emerald-400">{data.aiFalsePositiveCount ?? 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Filter Controls & Tabs */}

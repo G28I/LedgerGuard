@@ -137,12 +137,24 @@ model ReconciliationRun {
   startedAt       DateTime    @default(now())
   completedAt     DateTime?
 
+  // Feature 9 Benchmark Metrics (Ratios: e.g. 0.925 for 92.5%)
+  isBenchmark               Boolean   @default(false)
+  aiEvaluatedCount          Int       @default(0)
+  aiPromotedCount           Int       @default(0)
+  aiFalsePositiveCount      Int       @default(0)
+  deterministicMatchedCount Int       @default(0)
+  deterministicAccuracy     Float?
+  precision                 Float?
+  recall                    Float?
+  f1Score                   Float?
+
   // Relations
   results         ReconciliationResult[]
   exceptions      Exception[]
 
   @@index([status])
   @@index([startedAt])
+  @@index([isBenchmark])
 }
 
 model ReconciliationResult {

@@ -1,5 +1,6 @@
 import { dbRepository } from '@/features/db';
 import { generateSyntheticBenchmarkBatch, DEFAULT_BENCHMARK_SEED } from '@/features/synthetic';
+import { scoreBenchmarkRun } from '@/features/benchmark';
 import { runReconciliationEngine } from './engine';
 import { generateCandidatePairs } from './candidates';
 import { calculateVendorSimilarity } from './normalize';
@@ -203,22 +204,27 @@ export const reconciliationService = {
         totalExceptions += d.exceptions.length;
       });
 
-      const resolutionRate = matchedCount / dataset.totalCases;
-      const throughputRecordsPerSec = Number((dataset.totalCases / (durationMs / 1000)).toFixed(2));
+      // 6. Benchmark Scoring (Offline Evaluation Boundary)
+      // Strict Boundary: Ground truth map is NOT accessed by runtime engine/service/API/AI.
+      // It is passed exclusively to scoreBenchmarkRun after reconciliation completes.
+      const isBenchmark = params.isBenchmark ?? true;
 
-      // Calculate offline accuracy percentage against ground truth map
-      let correctGroundTruthCount = 0;
-      decisions.forEach((d) => {
-        if (!d.invoiceId) return;
-        const gt = dataset.groundTruthMap.get(d.invoiceId);
-        if (!gt) return;
-        const isStatusMatch = d.status === gt.expectedStatus;
-        const isExcMatch = gt.expectedExceptionType === null
-          ? d.exceptions.length === 0
-          : d.exceptions.some((e) => e.type === gt.expectedExceptionType);
-        if (isStatusMatch && isExcMatch) correctGroundTruthCount++;
+      // Pass A (In-Memory Pure Deterministic Baseline Pass)
+      const deterministicDecisions = runReconciliationEngine(
+        dataset.sourceRecords.invoices,
+        dataset.sourceRecords.bankTransactions,
+        dataset.sourceRecords.ledgerEntries,
+        policy
+      );
+      const detScore = scoreBenchmarkRun(deterministicDecisions, dataset.groundTruthMap);
+
+      // Pass B (AI-Enabled Pipeline Pass - Scored Offline)
+      const benchmarkScore = scoreBenchmarkRun(decisions, dataset.groundTruthMap, {
+        aiEvaluatedInvoiceIds: new Set(aiMetadataMap.keys()),
       });
-      const accuracyPercentage = Number(((correctGroundTruthCount / dataset.totalCases) * 100).toFixed(2));
+
+      const resolutionRate = Number((matchedCount / dataset.totalCases).toFixed(4));
+      const throughputRecordsPerSec = Number((dataset.totalCases / (durationMs / 1000)).toFixed(2));
 
       // 7. Atomic Transaction Persistence (Results & Exceptions)
       const resultsToPersist = decisions.map((d) => {
@@ -253,16 +259,25 @@ export const reconciliationService = {
 
       const persistedResults = await dbRepository.persistRunResultsAndExceptionsTransaction(resultsToPersist);
 
-      // 8. Complete Run (Status: COMPLETED)
+      // 8. Complete Run with Materialized Summaries (All metrics stored as decimal ratios e.g. 0.925)
       const completedRun = await dbRepository.completeRun(runRecord.id, {
         matchedCount,
         unresolvedCount,
         exceptionCount: totalExceptions,
         aiCallCount,
-        accuracy: accuracyPercentage,
-        resolutionRate,
+        accuracy: benchmarkScore.accuracy, // Normalized ratio e.g. 0.925
+        resolutionRate, // Normalized ratio e.g. 0.60
         durationMs,
         status: 'COMPLETED',
+        isBenchmark,
+        aiEvaluatedCount: benchmarkScore.aiEvaluatedCount,
+        aiPromotedCount: benchmarkScore.aiPromotedCount,
+        aiFalsePositiveCount: benchmarkScore.aiFalsePositiveCount,
+        deterministicMatchedCount: detScore.matchedCount,
+        deterministicAccuracy: detScore.accuracy, // Normalized ratio e.g. 0.925
+        precision: benchmarkScore.precision, // Ratio e.g. 1.0
+        recall: benchmarkScore.recall, // Ratio e.g. 1.0
+        f1Score: benchmarkScore.f1Score, // Ratio e.g. 1.0
       });
 
       // 9. Return Typed Summary Response Contract
@@ -284,7 +299,16 @@ export const reconciliationService = {
         exceptionCount: totalExceptions,
         aiCallCount,
         resolutionRate,
-        accuracyPercentage,
+        accuracyPercentage: benchmarkScore.accuracy,
+        accuracyRatio: benchmarkScore.accuracy,
+        precision: benchmarkScore.precision,
+        recall: benchmarkScore.recall,
+        f1Score: benchmarkScore.f1Score,
+        aiEvaluatedCount: benchmarkScore.aiEvaluatedCount,
+        aiPromotedCount: benchmarkScore.aiPromotedCount,
+        aiFalsePositiveCount: benchmarkScore.aiFalsePositiveCount,
+        deterministicMatchedCount: detScore.matchedCount,
+        deterministicAccuracyRatio: detScore.accuracy,
         durationMs,
         throughputRecordsPerSec,
         startedAt: new Date(startTime).toISOString(),

@@ -7,6 +7,7 @@ import {
   LayoutDashboard, 
   GitCompare, 
   AlertTriangle, 
+  BarChart3,
   Play, 
   ShieldCheck, 
   Menu, 
@@ -45,6 +46,7 @@ export function AppShell({ children }: AppShellProps) {
       icon: AlertTriangle, 
       badge: openExceptionsCount !== null ? openExceptionsCount : undefined 
     },
+    { label: 'Benchmark', href: '/benchmark', icon: BarChart3 },
   ];
 
   return (

@@ -123,6 +123,7 @@ export interface ExecuteRunParams {
   seed?: number;
   batchName?: string;
   enableAI?: boolean;
+  isBenchmark?: boolean;
   policyConfig?: Partial<ReconciliationPolicyConfig>;
 }
 
@@ -138,8 +139,17 @@ export interface ReconciliationRunSummaryResponse {
   unresolvedCount: number;
   exceptionCount: number;
   aiCallCount: number;
-  resolutionRate: number; // 0.0 to 1.0
-  accuracyPercentage?: number | null; // Offline benchmark ground truth score if applicable
+  resolutionRate: number; // Ratio e.g. 0.60
+  accuracyPercentage?: number | null; // Historical ratio or percentage presentation if applicable
+  accuracyRatio?: number | null; // Ratio e.g. 0.925
+  precision?: number | null;
+  recall?: number | null;
+  f1Score?: number | null;
+  aiEvaluatedCount?: number;
+  aiPromotedCount?: number;
+  aiFalsePositiveCount?: number;
+  deterministicMatchedCount?: number;
+  deterministicAccuracyRatio?: number | null;
   durationMs: number;
   throughputRecordsPerSec: number;
   startedAt: string;
