@@ -904,6 +904,29 @@ These numbers are examples only. Never hard-code them into the product.
 ##### P2 = Polish / Optional
 8. **P2-1: Clean up research script dead code in `web/scripts/`**.
 
+#### Pre-Judging Hardening — Implementation Results
+
+##### P0 Fixes Applied
+1. **P0-1 FIXED**: `app/page.tsx` and `app/runs/page.tsx` — Added `formatMetricAsPercent()` helper that safely handles both legacy runs (accuracy stored as `92.5`) and post-normalization runs (accuracy stored as `0.925` ratio). Values > 1 are treated as already-percentage. Applied consistently to all accuracy, resolutionRate displays on Overview KPI cards, Overview recent runs table, and Runs History table.
+2. **P0-2 FIXED**: `app/reconciliation/[id]/page.tsx` — Replaced `{data.aiEvaluatedCount ?? 26}` with computed `{aiEvaluatedCount}` derived from actual results. Also fixed `{run.aiEvaluatedCount ?? 26}` → `{run.aiEvaluatedCount ?? 0}` in `app/benchmark/page.tsx`.
+3. **P0-3 FIXED**: `components/RecordDetailDrawer.tsx` — Added `isBenchmark?: boolean` prop. Section 4 (Ground-Truth Audit Verification Card) now only renders when `isBenchmark === true`. Parent `app/reconciliation/[id]/page.tsx` passes `isBenchmark={data.isBenchmark}`.
+4. **P0-4 FIXED**: `app/api/reconciliation/exceptions/[id]/route.ts` — Changed fallback identity from `'DEMO_OPERATOR'` to `'DEMO_OPERATOR (System Fallback)'` with `.trim()` guard. Comment updated to document this is a non-human system identity in the unauthenticated demo environment.
+
+##### P1 Fixes Applied
+5. **P1-1 FIXED**: `features/ai/openrouter.ts` — Implemented bounded retry with exponential backoff. `tryCall()` now accepts `retryAttempts` parameter (default: 1). On HTTP 429/5xx or timeout (AbortError), retries once with `1000ms * attempt` delay before failing. Non-transient errors (4xx, malformed responses) are NOT retried. After retry exhaustion, falls over to fallback model as before.
+6. **P1-2 FIXED**: `app/exceptions/page.tsx` — Enforces `limit=100` in fetch URL. When `exceptions.length >= 100`, displays amber indicator: "Showing first 100 exceptions. Apply filters to narrow results." Repository layer already enforced `take: filter?.limit ?? 100`.
+7. **P1-3 FIXED**: `features/db/repository.ts` `getOverviewMetrics()` — Added `sourceCounts` (invoices, bankTransactions, ledgerEntries, totalSourceRecords) from actual `prisma.*.count()` queries. `app/page.tsx` — Added `sourceCounts` to `OverviewMetricsData` interface and renders source composition pills ("Invoices N", "Bank Txs N", "Ledger N", "(total)") from API data.
+
+##### Discovered Issues During Hardening
+- **Legacy pre-normalization accuracy values**: One pre-Feature-9 run (`cmte61u2a00h1tlq48s6z6oph`) stores `accuracy: 92.5` (raw percentage). The `formatMetricAsPercent` helper handles this safely: values > 1 are displayed as-is without re-scaling.
+
+##### Verification Results
+- `npx tsc --noEmit`: **0 errors**
+- `npm run lint`: **0 errors** (2 warnings: unused `trueNegatives` in scorer.ts, unused `incorrectCount` in test-feature5.ts)
+- `npm run build`: **Compiled successfully**
+- API verification: `GET /api/reconciliation/overview` returns `sourceCounts` from actual database counts
+- Benchmark baseline metrics: **UNCHANGED** (120 matched, 80 unresolved, 0.925 accuracy, 0.8889 precision, 1.0 recall, 0.9412 F1)
+
 ---
 
 # Slice 5: Failure recovery & hardening

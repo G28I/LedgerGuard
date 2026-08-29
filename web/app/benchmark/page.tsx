@@ -240,7 +240,7 @@ export default function BenchmarkPage() {
                           {run.precision !== undefined && run.precision !== null ? `${(run.precision * 100).toFixed(0)}%` : '100%'} / {run.recall !== undefined && run.recall !== null ? `${(run.recall * 100).toFixed(0)}%` : '100%'} / {run.f1Score !== undefined && run.f1Score !== null ? `${(run.f1Score * 100).toFixed(0)}%` : '100%'}
                         </td>
                         <td className="py-3 px-3 text-purple-300">
-                          {run.aiCallCount} calls / {run.aiEvaluatedCount ?? 26} evaluated
+                          {run.aiCallCount} calls / {run.aiEvaluatedCount ?? 0} evaluated
                         </td>
                         <td className="py-3 px-3">
                           <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${

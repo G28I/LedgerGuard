@@ -294,7 +294,7 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
 
                 <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
                   <span className="text-[10px] text-slate-400 block">AI Evaluated Records</span>
-                  <span className="font-bold text-purple-300">{data.aiEvaluatedCount ?? 26}</span>
+                  <span className="font-bold text-purple-300">{aiEvaluatedCount}</span>
                 </div>
 
                 <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
@@ -566,6 +566,7 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
       {selectedResult && (
         <RecordDetailDrawer
           result={selectedResult}
+          isBenchmark={data.isBenchmark}
           onClose={() => setSelectedResult(null)}
         />
       )}

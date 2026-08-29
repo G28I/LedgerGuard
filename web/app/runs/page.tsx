@@ -38,6 +38,12 @@ export default function ReconciliationRunsPage() {
       });
   }, []);
 
+  const formatMetricAsPercent = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return 'N/A';
+    if (value > 1) return `${value.toFixed(1)}%`;
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
   return (
     <AppShell>
       <div className="p-6 space-y-6 max-w-[1600px] mx-auto w-full">
@@ -104,10 +110,10 @@ export default function ReconciliationRunsPage() {
                       <td className="py-3 px-3 text-emerald-400 font-bold">{run.matchedCount}</td>
                       <td className="py-3 px-3 text-amber-400">{run.unresolvedCount}</td>
                       <td className="py-3 px-3">
-                        {run.resolutionRate !== null ? `${(run.resolutionRate * 100).toFixed(1)}%` : '0%'}
+                        {formatMetricAsPercent(run.resolutionRate)}
                       </td>
                       <td className="py-3 px-3 text-cyan-300 font-bold">
-                        {run.accuracy !== null ? `${run.accuracy}%` : 'N/A'}
+                        {formatMetricAsPercent(run.accuracy)}
                       </td>
                       <td className="py-3 px-3">
                         <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${

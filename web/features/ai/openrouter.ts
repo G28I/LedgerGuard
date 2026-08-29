@@ -86,55 +86,78 @@ Instructions:
   const startTime = Date.now();
   let actualModel = preferredModel;
 
-  const tryCall = async (model: string): Promise<string> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+  const tryCall = async (model: string, retryAttempts: number = 1): Promise<string> => {
+    let attempt = 0;
+    let lastError: unknown;
 
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://ledgerguard.local',
-          'X-Title': 'LedgerGuard Financial Reconciliation',
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model,
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a precise financial audit system. Respond ONLY in valid raw JSON.',
-            },
-            {
-              role: 'user',
-              content: promptMessage,
-            },
-          ],
-          temperature: 0.1, // Low temperature for consistent deterministic reasoning
-        }),
-      });
+    while (attempt <= retryAttempts) {
+      attempt++;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
-      clearTimeout(timeoutId);
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://ledgerguard.local',
+            'X-Title': 'LedgerGuard Financial Reconciliation',
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model,
+            response_format: { type: 'json_object' },
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a precise financial audit system. Respond ONLY in valid raw JSON.',
+              },
+              {
+                role: 'user',
+                content: promptMessage,
+              },
+            ],
+            temperature: 0.1, // Low temperature for consistent deterministic reasoning
+          }),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenRouter API HTTP ${response.status}: ${errorText.slice(0, 200)}`);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          const isTransient = response.status === 429 || response.status >= 500;
+
+          if (isTransient && attempt <= retryAttempts) {
+            console.warn(`[OpenRouter] HTTP ${response.status} rate limit/server error on ${model}. Retrying attempt ${attempt}...`);
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+            continue;
+          }
+          throw new Error(`OpenRouter API HTTP ${response.status}: ${errorText.slice(0, 200)}`);
+        }
+
+        const data = await response.json();
+        actualModel = data.model ?? model;
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+          throw new Error('OpenRouter response contained empty message content');
+        }
+        return content;
+      } catch (err: unknown) {
+        clearTimeout(timeoutId);
+        lastError = err;
+
+        // If AbortError (timeout) or transient error and retries remain
+        if (attempt <= retryAttempts && (err instanceof Error && err.name === 'AbortError')) {
+          console.warn(`[OpenRouter] Timeout on ${model}. Retrying attempt ${attempt}...`);
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+        break;
       }
-
-      const data = await response.json();
-      actualModel = data.model ?? model;
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('OpenRouter response contained empty message content');
-      }
-      return content;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      throw err;
     }
+
+    throw lastError;
   };
 
   try {

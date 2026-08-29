@@ -37,8 +37,8 @@ export async function PATCH(
       );
     }
 
-    // Default to "DEMO_OPERATOR" for unauthenticated demo environment
-    const resolvedBy = validationResult.data.resolvedBy || 'DEMO_OPERATOR';
+    // Default to explicit non-human system demo identity for unauthenticated demo environment
+    const resolvedBy = validationResult.data.resolvedBy?.trim() || 'DEMO_OPERATOR (System Fallback)';
     const resolutionNotes = validationResult.data.resolutionNotes;
 
     const updatedException = await dbRepository.resolveException(id, {

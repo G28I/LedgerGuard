@@ -46,6 +46,12 @@ interface OverviewMetricsData {
     startedAt: string;
   }>;
   exceptionBreakdown: Record<string, number>;
+  sourceCounts: {
+    invoices: number;
+    bankTransactions: number;
+    ledgerEntries: number;
+    totalSourceRecords: number;
+  };
 }
 
 export default function OverviewPage() {
@@ -95,6 +101,18 @@ export default function OverviewPage() {
 
   const latestRun = data?.latestRun;
 
+  /**
+   * Safely format a metric value as a percentage string.
+   * Handles both legacy runs (accuracy stored as 92.5) and
+   * post-normalization runs (accuracy stored as 0.925 ratio).
+   * Values > 1 are assumed to already be percentages.
+   */
+  const formatMetricAsPercent = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return 'N/A';
+    if (value > 1) return `${value.toFixed(1)}%`;
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
   return (
     <AppShell>
       <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
@@ -140,6 +158,25 @@ export default function OverviewPage() {
                 )}
               </div>
 
+              {/* Source Composition Indicator */}
+              {data?.sourceCounts && (
+                <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500">
+                  <span className="text-slate-600">Sources:</span>
+                  <span className="px-1.5 py-0.5 bg-slate-900/60 border border-slate-800 rounded text-slate-400">
+                    Invoices {data.sourceCounts.invoices}
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-slate-900/60 border border-slate-800 rounded text-slate-400">
+                    Bank Txs {data.sourceCounts.bankTransactions}
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-slate-900/60 border border-slate-800 rounded text-slate-400">
+                    Ledger {data.sourceCounts.ledgerEntries}
+                  </span>
+                  <span className="text-slate-600">
+                    ({data.sourceCounts.totalSourceRecords} total)
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
@@ -177,9 +214,7 @@ export default function OverviewPage() {
                     Resolution Rate
                   </span>
                   <p className="text-xl font-bold font-mono text-slate-100">
-                    {latestRun && latestRun.resolutionRate !== null
-                      ? `${(latestRun.resolutionRate * 100).toFixed(1)}%`
-                      : '0%'}
+                    {formatMetricAsPercent(latestRun?.resolutionRate)}
                   </p>
                 </div>
 
@@ -189,9 +224,7 @@ export default function OverviewPage() {
                     Accuracy
                   </span>
                   <p className="text-xl font-bold font-mono text-cyan-300">
-                    {latestRun && latestRun.accuracy !== null
-                      ? `${latestRun.accuracy}%`
-                      : 'N/A'}
+                    {formatMetricAsPercent(latestRun?.accuracy)}
                   </p>
                 </div>
 
@@ -302,10 +335,10 @@ export default function OverviewPage() {
                           <td className="py-3 px-3 text-emerald-400 font-bold">{run.matchedCount}</td>
                           <td className="py-3 px-3 text-amber-400">{run.unresolvedCount}</td>
                           <td className="py-3 px-3">
-                            {run.resolutionRate !== null ? `${(run.resolutionRate * 100).toFixed(1)}%` : '0%'}
+                            {formatMetricAsPercent(run.resolutionRate)}
                           </td>
                           <td className="py-3 px-3 text-cyan-300 font-bold">
-                            {run.accuracy !== null ? `${run.accuracy}%` : 'N/A'}
+                            {formatMetricAsPercent(run.accuracy)}
                           </td>
                           <td className="py-3 px-3">
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${

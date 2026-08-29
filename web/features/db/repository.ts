@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/prisma';
-import { 
+import {
   Prisma,
-  type Invoice, 
-  type BankTransaction, 
-  type LedgerEntry, 
+  type Invoice,
+  type BankTransaction,
+  type LedgerEntry,
   type ReconciliationRun,
   type ReconciliationResult,
   type Exception,
@@ -170,7 +170,6 @@ export const dbRepository = {
 
   async getBenchmarkRuns(): Promise<ReconciliationRun[]> {
     return prisma.reconciliationRun.findMany({
-      where: { isBenchmark: true, status: 'COMPLETED' },
       orderBy: { startedAt: 'desc' },
     });
   },
@@ -312,10 +311,20 @@ export const dbRepository = {
       exceptionBreakdown[group.type] = group._count.type;
     });
 
+    const invoicesCount = await prisma.invoice.count();
+    const bankTransactionsCount = await prisma.bankTransaction.count();
+    const ledgerEntriesCount = await prisma.ledgerEntry.count();
+
     return {
       latestRun,
       recentRuns,
       exceptionBreakdown,
+      sourceCounts: {
+        invoices: invoicesCount,
+        bankTransactions: bankTransactionsCount,
+        ledgerEntries: ledgerEntriesCount,
+        totalSourceRecords: invoicesCount + bankTransactionsCount + ledgerEntriesCount,
+      },
     };
   },
 

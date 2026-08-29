@@ -62,7 +62,7 @@ export default function ExceptionQueuePage() {
 
   useEffect(() => {
     let ignore = false;
-    let url = '/api/reconciliation/exceptions?';
+    let url = '/api/reconciliation/exceptions?limit=100&';
     if (resolvedFilter === 'OPEN') url += 'resolved=false&';
     if (resolvedFilter === 'RESOLVED') url += 'resolved=true&';
     if (selectedPriority !== 'ALL') url += `priority=${selectedPriority}&`;
@@ -249,6 +249,12 @@ export default function ExceptionQueuePage() {
             </div>
           ) : (
             <>
+              {/* Limit Indicator */}
+              {exceptions.length >= 100 && (
+                <div className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded text-[10px] text-amber-400 font-mono">
+                  Showing first 100 exceptions. Apply filters to narrow results.
+                </div>
+              )}
               {/* Desktop Table */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-xs font-mono">
