@@ -4,6 +4,20 @@ import { MatchMethod, ResultStatus, ExceptionType, ExceptionPriority, RunStatus 
 async function main() {
   console.log('🌱 Starting database verification and seed script...');
 
+  // Hard Safety Guard: Prevent accidental data deletion in production or live databases
+  const isProduction = process.env.NODE_ENV === 'production';
+  const dbUrl = process.env.DATABASE_URL ?? '';
+  const isProdDb = dbUrl.includes('prod') || dbUrl.includes('production') || dbUrl.includes('live');
+  const allowReset = process.env.ALLOW_SEED_RESET === 'true';
+
+  if ((isProduction || isProdDb) && !allowReset) {
+    console.error('\n🚨 SAFETY GUARD TRIGGERED: Seed Execution Blocked!');
+    console.error('The seed script attempts to purge all financial records from the database.');
+    console.error('Running against NODE_ENV=production or a production database URL is forbidden.');
+    console.error('To override for a non-production test DB, set ALLOW_SEED_RESET="true" in your environment.\n');
+    throw new Error('SEED_ABORTED: Production database wipe prevented by safety guard.');
+  }
+
   // 1. Clean existing test seed data
   await prisma.exception.deleteMany({});
   await prisma.reconciliationResult.deleteMany({});
