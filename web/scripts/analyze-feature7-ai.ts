@@ -4,6 +4,44 @@ import { generateCandidatePairs } from '../features/reconciliation/candidates';
 import { resolveAmbiguityWithAI } from '../features/ai';
 import { calculateVendorSimilarity } from '../features/reconciliation/normalize';
 
+interface IncorrectPromotionDetail {
+  invoiceId: string;
+  invoiceNumber: string;
+  vendorName: string;
+  amountCents: number;
+  issueDate: string;
+  selectedBankTxId: string | null;
+  selectedBankTx?: {
+    transactionRef: string;
+    description: string;
+    amountCents: number;
+    transactionDate: Date;
+  } | null;
+  alternativeCandidates: unknown[];
+  modelConfidence: number | null;
+  modelReasoning: string;
+  keyEvidence: string[];
+  groundTruth?: {
+    scenarioType?: string;
+    expectedStatus?: string;
+    expectedMatchedBankTxId?: string | null;
+    expectedExceptionType?: string | null;
+  };
+  deterministicReasonCode: string;
+}
+
+interface AiEvaluatedDetail {
+  invoiceId: string;
+  invoiceNumber: string;
+  deterministicReason: string;
+  aiStatus: string;
+  selectedTxId: string | null;
+  gtStatus?: string;
+  gtBankTxId: string | null;
+  gtScenarioType?: string;
+  isCorrect: boolean;
+}
+
 async function analyzeAiPromotions() {
   console.log('📊 Starting Feature 7 AI Evaluation Deep Dive Analysis...\n');
 
@@ -30,16 +68,16 @@ async function analyzeAiPromotions() {
   let aiCalls = 0;
   let validAiResponses = 0;
   let aiMatches = 0;
-  let aiRejections = 0;
   let aiUnresolved = 0;
   let promotedMatches = 0;
   let correctAiPromotions = 0;
   let incorrectAiPromotions = 0;
   let falsePositives = 0;
   let falseNegatives = 0;
+  const aiRejections = 0;
 
-  const incorrectPromotionsDetails: any[] = [];
-  const allAiEvaluatedDetails: any[] = [];
+  const incorrectPromotionsDetails: IncorrectPromotionDetail[] = [];
+  const allAiEvaluatedDetails: AiEvaluatedDetail[] = [];
 
   for (let i = 0; i < decisions.length; i++) {
     const d = decisions[i];
@@ -163,7 +201,7 @@ async function analyzeAiPromotions() {
   console.log(`- AI Unresolved:                 ${aiUnresolved}`);
   console.log(`- Promoted Matches to DB:        ${promotedMatches}`);
   console.log(`- Correct AI Promotions (True+):  ${correctAiPromotions}`);
-  console.log(`- Incorrect AI Promotions (False+): ${incorrectAiPromotions}`);
+  console.log(`- Incorrect AI Promotions (False+): ${incorrectAiPromotions} (FalsePositives=${falsePositives})`);
   console.log(`- False Negatives (Measurable):  ${falseNegatives}`);
   console.log('====================================================\n');
 

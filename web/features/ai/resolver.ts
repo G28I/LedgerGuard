@@ -181,6 +181,28 @@ export async function resolveAmbiguityWithAI(
     };
   }
 
+  // Safety Check F: Candidate Separation Safety Rule (Competing Ambiguity Threshold)
+  // When competing candidates remain within 5% similarity threshold with identical amounts, AI must not promote to MATCHED.
+  const competingCandidates = topCandidates.filter((c) => c.bankTx && c.bankTx.id !== matchedPair.bankTx?.id);
+  const hasCompetingAmbiguousCandidate = competingCandidates.some((other) => {
+    if (!other.bankTx) return false;
+    const similarityDelta = Math.abs(matchedPair.vendorSimilarity - other.vendorSimilarity);
+    const sameAmount = matchedPair.amountDeltaCents === other.amountDeltaCents;
+    return sameAmount && similarityDelta <= 0.05;
+  });
+
+  if (hasCompetingAmbiguousCandidate) {
+    return {
+      status: 'UNRESOLVED',
+      selectedBankTxId: null,
+      confidenceScore: parsedOutput.confidenceScore,
+      reasoning: `Candidate separation safety rule triggered: Multiple competing candidates tie within ambiguity threshold (<= 5% vendor similarity delta with identical amount). Decision remains UNRESOLVED for human auditor review.`,
+      keyEvidence: parsedOutput.keyEvidence,
+      actualModelUsed: openRouterOutput.actualModelUsed,
+      promptDurationMs: openRouterOutput.promptDurationMs,
+    };
+  }
+
   // All Application Safety Checks Passed -> Promote candidate to MATCHED
   return {
     status: 'MATCHED',

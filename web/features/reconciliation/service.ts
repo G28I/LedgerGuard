@@ -107,13 +107,15 @@ export const reconciliationService = {
           if (!d.invoiceId) continue;
 
           // Invariant Safety Check: Only UNRESOLVED records are eligible for AI resolution.
-          // Deterministic MATCHED records and hard financial MISMATCH records are NEVER processed by AI!
-          if (d.status === 'MATCHED' || d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' || d.reasonCode === 'AMOUNT_MISMATCH') {
-            continue;
-          }
-
-          // Skip zero candidate cases (MISSING_RECORD) and duplicate payment safety flags
-          if (d.reasonCode === 'MISSING_RECORD' || d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED') {
+          // Deterministic MATCHED, AMOUNT_MISMATCH, MISSING_RECORD, DUPLICATE, and AMBIGUOUS_MATCH_TIE decisions are NEVER processed by AI!
+          if (
+            d.status === 'MATCHED' ||
+            d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' ||
+            d.reasonCode === 'AMOUNT_MISMATCH' ||
+            d.reasonCode === 'MISSING_RECORD' ||
+            d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED' ||
+            d.reasonCode === 'AMBIGUOUS_MATCH_TIE'
+          ) {
             continue;
           }
 
