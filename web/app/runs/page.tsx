@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { GitCompare, Play, Loader2 } from 'lucide-react';
 import { NewReconciliationModal } from '@/components/NewReconciliationModal';
+import { formatMetricAsPercent } from '@/lib/format';
 
 interface RunItem {
   id: string;
@@ -37,12 +38,6 @@ export default function ReconciliationRunsPage() {
         setLoading(false);
       });
   }, []);
-
-  const formatMetricAsPercent = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return 'N/A';
-    if (value > 1) return `${value.toFixed(1)}%`;
-    return `${(value * 100).toFixed(1)}%`;
-  };
 
   return (
     <AppShell>

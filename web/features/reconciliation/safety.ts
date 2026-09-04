@@ -72,7 +72,7 @@ export function evaluateCandidateSafety(
         method: 'FUZZY',
         ruleStrength: 'DISCREPANCY',
         confidence: null,
-        amountDeltaCents: 0,
+        amountDeltaCents: top1.amountDeltaCents,
         reasonCode: 'DUPLICATE_TRANSACTION_DETECTED',
         explanation: `Multiple effectively identical bank transactions (${top1.bankTx.transactionRef}, ${top2.bankTx.transactionRef}) detected for Invoice '${invoice.invoiceNumber}'.`,
         evidenceJson: {
@@ -131,4 +131,28 @@ export function evaluateCandidateSafety(
   }
 
   return null;
+}
+
+/**
+ * Shared AI Eligibility Predicate
+ * Determines whether an unresolved reconciliation decision is safe and eligible
+ * for downstream AI ambiguity evaluation.
+ * 
+ * Invariants:
+ * - Deterministic matches are locked and immutable.
+ * - Hard financial mismatches, missing records, duplicates, and candidate ties
+ *   are strictly forbidden from invoking AI.
+ */
+export function isAiEligible(decision: ReconciliationDecision): boolean {
+  if (decision.status === 'MATCHED') return false;
+  if (
+    decision.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' ||
+    decision.reasonCode === 'AMOUNT_MISMATCH' ||
+    decision.reasonCode === 'MISSING_RECORD' ||
+    decision.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED' ||
+    decision.reasonCode === 'AMBIGUOUS_MATCH_TIE'
+  ) {
+    return false;
+  }
+  return true;
 }

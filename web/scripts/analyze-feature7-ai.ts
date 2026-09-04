@@ -1,5 +1,5 @@
 import { generateSyntheticBenchmarkBatch } from '../features/synthetic';
-import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY } from '../features/reconciliation';
+import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY, isAiEligible } from '../features/reconciliation';
 import { generateCandidatePairs } from '../features/reconciliation/candidates';
 import { resolveAmbiguityWithAI } from '../features/ai';
 import { calculateVendorSimilarity } from '../features/reconciliation/normalize';
@@ -84,10 +84,7 @@ async function analyzeAiPromotions() {
     if (!d.invoiceId) continue;
 
     // Check deterministic protection invariants
-    if (d.status === 'MATCHED' || d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' || d.reasonCode === 'AMOUNT_MISMATCH') {
-      continue;
-    }
-    if (d.reasonCode === 'MISSING_RECORD' || d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED') {
+    if (!isAiEligible(d)) {
       continue;
     }
 

@@ -1,8 +1,9 @@
 import { faker } from '@faker-js/faker';
-import type { 
-  NormalizedInvoice, 
-  NormalizedBankTx, 
-  NormalizedLedgerEntry 
+import { 
+  normalizeVendorName,
+  type NormalizedInvoice, 
+  type NormalizedBankTx, 
+  type NormalizedLedgerEntry 
 } from '@/features/reconciliation';
 import type { 
   SyntheticBatchDataset, 
@@ -31,17 +32,21 @@ export function generateSyntheticBenchmarkBatch(
   const seed = options.seed ?? DEFAULT_BENCHMARK_SEED;
   const totalCases = options.totalCases ?? DEFAULT_BENCHMARK_CASES;
 
+  if (totalCases <= 0 || !Number.isInteger(totalCases)) {
+    throw new Error('totalCases must be a positive integer');
+  }
+
   // Seed Faker for 100% reproducible synthetic generation
   faker.seed(seed);
 
-  // Scenario counts based on target share distribution
-  const exactCount = Math.round(totalCases * 0.40);       // 40% = 80 cases
-  const variationCount = Math.round(totalCases * 0.20);   // 20% = 40 cases
-  const amountMismatchCount = Math.round(totalCases * 0.10);// 10% = 20 cases
-  const dateMismatchCount = Math.round(totalCases * 0.10);  // 10% = 20 cases
-  const missingCount = Math.round(totalCases * 0.10);        // 10% = 20 cases
-  const duplicateCount = Math.round(totalCases * 0.05);      // 5% = 10 cases
-  const ambiguousCount = Math.round(totalCases * 0.05);      // 5% = 10 cases
+  // Scenario counts based on target share distribution with deterministic remainder allocation
+  const exactCount = Math.floor(totalCases * 0.40);       // 40% = 80 cases
+  const variationCount = Math.floor(totalCases * 0.20);   // 20% = 40 cases
+  const amountMismatchCount = Math.floor(totalCases * 0.10);// 10% = 20 cases
+  const dateMismatchCount = Math.floor(totalCases * 0.10);  // 10% = 20 cases
+  const missingCount = Math.floor(totalCases * 0.10);        // 10% = 20 cases
+  const duplicateCount = Math.floor(totalCases * 0.05);      // 5% = 10 cases
+  const ambiguousCount = totalCases - (exactCount + variationCount + amountMismatchCount + dateMismatchCount + missingCount + duplicateCount);
 
   const invoices: NormalizedInvoice[] = [];
   const bankTransactions: NormalizedBankTx[] = [];
@@ -60,11 +65,7 @@ export function generateSyntheticBenchmarkBatch(
   }
 
   function normVendor(rawVendor: string): string {
-    return rawVendor
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return normalizeVendorName(rawVendor);
   }
 
   const baseDate = new Date('2026-08-01T00:00:00.000Z');

@@ -45,7 +45,15 @@ function verifyFeature5Implementation() {
   console.log(`- Duplicates (Target 5% / 10): ${counts.DUPLICATE}`);
   console.log(`- Ambiguous Matches (Target 5% / 10): ${counts.AMBIGUOUS_MATCH}`);
 
-  if (counts.EXACT_MATCH !== 80 || counts.AMOUNT_MISMATCH !== 20 || counts.DATE_MISMATCH !== 20 || counts.MISSING_RECORD !== 20 || counts.DUPLICATE !== 10 || counts.AMBIGUOUS_MATCH !== 10) {
+  if (
+    counts.EXACT_MATCH !== 80 ||
+    counts.VENDOR_VARIATION + counts.REF_VARIATION !== 40 ||
+    counts.AMOUNT_MISMATCH !== 20 ||
+    counts.DATE_MISMATCH !== 20 ||
+    counts.MISSING_RECORD !== 20 ||
+    counts.DUPLICATE !== 10 ||
+    counts.AMBIGUOUS_MATCH !== 10
+  ) {
     throw new Error('Verification Failed: Scenario distribution count mismatch!');
   }
 
@@ -103,7 +111,7 @@ function verifyFeature5Implementation() {
   });
 
   const accuracyPct = ((correctCount / batch.totalCases) * 100).toFixed(2);
-  console.log(`\n🎯 Ground Truth Evaluation Score: ${correctCount}/${batch.totalCases} Correct (${accuracyPct}% Accuracy)`);
+  console.log(`\n🎯 Ground Truth Evaluation Score: ${correctCount}/${batch.totalCases} Correct, ${incorrectCount} Incorrect (${accuracyPct}% Accuracy)`);
 
   console.log('\n✅ Feature 5 Synthetic Benchmark Generator verified successfully!');
 }

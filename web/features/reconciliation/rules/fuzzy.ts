@@ -17,7 +17,8 @@ export function evaluateFuzzyRule(
     dateDeltaDays >= policy.dateWindowDays.minDaysBefore &&
     dateDeltaDays <= policy.dateWindowDays.maxDaysAfter;
 
-  const isCredibleRecord = hasExactRefMatch || vendorSimilarity >= policy.minVendorSimilarityThreshold;
+  const isCurrencyMatch = invoice.currency === bankTx.currency;
+  const isCredibleRecord = isCurrencyMatch && (hasExactRefMatch || vendorSimilarity >= policy.minVendorSimilarityThreshold);
 
   if (!isCredibleRecord) {
     return null; // Not a credible candidate for fuzzy decision

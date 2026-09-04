@@ -10,6 +10,7 @@ import {
   Filter, 
   Loader2
 } from 'lucide-react';
+import { formatMetricAsPercent } from '@/lib/format';
 
 interface ReconciliationResultItem {
   id: string;
@@ -241,13 +242,13 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
             <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg">
               <span className="text-[10px] text-slate-400 block uppercase">Resolution Rate</span>
               <span className="text-sm font-bold text-slate-200">
-                {data.resolutionRate !== null ? `${(data.resolutionRate * 100).toFixed(1)}%` : '0%'}
+                {formatMetricAsPercent(data.resolutionRate)}
               </span>
             </div>
             <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg">
               <span className="text-[10px] text-slate-400 block uppercase">Accuracy</span>
               <span className="text-sm font-bold text-cyan-300">
-                {data.isBenchmark && data.accuracy !== null ? `${(data.accuracy * 100).toFixed(1)}%` : 'N/A'}
+                {data.isBenchmark ? formatMetricAsPercent(data.accuracy) : 'N/A'}
               </span>
             </div>
             <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg">
@@ -274,21 +275,21 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
                 <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
                   <span className="text-[10px] text-slate-400 block">Precision</span>
                   <span className="font-bold text-emerald-400">
-                    {data.precision !== undefined && data.precision !== null ? `${(data.precision * 100).toFixed(1)}%` : '100.0%'}
+                    {formatMetricAsPercent(data.precision)}
                   </span>
                 </div>
 
                 <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
                   <span className="text-[10px] text-slate-400 block">Recall</span>
                   <span className="font-bold text-emerald-400">
-                    {data.recall !== undefined && data.recall !== null ? `${(data.recall * 100).toFixed(1)}%` : '100.0%'}
+                    {formatMetricAsPercent(data.recall)}
                   </span>
                 </div>
 
                 <div className="p-2.5 bg-slate-900 border border-slate-800 rounded">
                   <span className="text-[10px] text-slate-400 block">F1 Score</span>
                   <span className="font-bold text-cyan-300">
-                    {data.f1Score !== undefined && data.f1Score !== null ? `${(data.f1Score * 100).toFixed(1)}%` : '100.0%'}
+                    {formatMetricAsPercent(data.f1Score)}
                   </span>
                 </div>
 

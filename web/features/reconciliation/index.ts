@@ -53,5 +53,8 @@ export { runReconciliationEngine } from './engine';
 // Application Orchestration Service
 export { reconciliationService } from './service';
 
+// Safety & AI Eligibility
+export { isAiEligible } from './safety';
+
 // Edge Cases Verification Runner
 export { runFeature4EdgeCasesVerification } from './verify-feature4';

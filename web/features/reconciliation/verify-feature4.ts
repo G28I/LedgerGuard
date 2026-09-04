@@ -257,11 +257,23 @@ export function runFeature4EdgeCasesVerification() {
   console.log('📌 Edge Case 9 (Insufficient Evidence):', results.insufficientEvidence?.status, results.insufficientEvidence?.reasonCode);
 
   // Validate assertions
+  if (decisions.length !== invoices.length) {
+    throw new Error(`Verification Failed: Expected exactly ${invoices.length} decisions, got ${decisions.length}`);
+  }
   if (results.exactMatch?.status !== 'MATCHED' || results.exactMatch?.ruleStrength !== 'EXACT') {
     throw new Error('Verification Failed: Edge Case 1 (Exact Match) expected MATCHED/EXACT');
   }
+  if (results.vendorVariation?.status !== 'MATCHED') {
+    throw new Error('Verification Failed: Edge Case 2 (Vendor Variation) expected MATCHED');
+  }
+  if (results.refVariation?.status !== 'MATCHED') {
+    throw new Error('Verification Failed: Edge Case 3 (Ref Variation) expected MATCHED');
+  }
   if (results.amountMismatch?.status !== 'MISMATCH' || results.amountMismatch?.reasonCode !== 'AMOUNT_MISMATCH') {
     throw new Error('Verification Failed: Edge Case 4 (Amount Mismatch) expected MISMATCH/AMOUNT_MISMATCH');
+  }
+  if (results.dateMismatch?.status !== 'UNRESOLVED' || results.dateMismatch?.reasonCode !== 'DATE_MISMATCH') {
+    throw new Error('Verification Failed: Edge Case 5 (Date Mismatch) expected UNRESOLVED/DATE_MISMATCH');
   }
   if (results.missingTx?.reasonCode !== 'MISSING_RECORD') {
     throw new Error('Verification Failed: Edge Case 6 (Missing Tx) expected MISSING_RECORD');
@@ -271,6 +283,9 @@ export function runFeature4EdgeCasesVerification() {
   }
   if (results.ambiguousTie?.exceptions[0]?.type !== 'AMBIGUOUS_MATCH') {
     throw new Error('Verification Failed: Edge Case 8 (Ambiguous Match) expected AMBIGUOUS_MATCH exception');
+  }
+  if (results.insufficientEvidence?.status !== 'UNRESOLVED' || results.insufficientEvidence?.reasonCode !== 'MISSING_RECORD') {
+    throw new Error('Verification Failed: Edge Case 9 (Insufficient Evidence) expected UNRESOLVED/MISSING_RECORD');
   }
 
   console.log('\n✅ All 9 Feature 4 representative edge cases verified successfully!');

@@ -15,6 +15,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { NewReconciliationModal } from '@/components/NewReconciliationModal';
+import { formatMetricAsPercent } from '@/lib/format';
 
 interface OverviewMetricsData {
   latestRun: {
@@ -100,18 +101,6 @@ export default function OverviewPage() {
   }, []);
 
   const latestRun = data?.latestRun;
-
-  /**
-   * Safely format a metric value as a percentage string.
-   * Handles both legacy runs (accuracy stored as 92.5) and
-   * post-normalization runs (accuracy stored as 0.925 ratio).
-   * Values > 1 are assumed to already be percentages.
-   */
-  const formatMetricAsPercent = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return 'N/A';
-    if (value > 1) return `${value.toFixed(1)}%`;
-    return `${(value * 100).toFixed(1)}%`;
-  };
 
   return (
     <AppShell>

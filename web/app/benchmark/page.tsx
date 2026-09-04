@@ -11,6 +11,7 @@ import {
   Loader2, 
   Database
 } from 'lucide-react';
+import { formatMetricAsPercent } from '@/lib/format';
 
 interface BaselineSnapshotItem {
   id: string;
@@ -146,18 +147,18 @@ export default function BenchmarkPage() {
                 <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                   <div className="p-2 bg-slate-950/60 rounded border border-slate-800/80">
                     <span className="text-[10px] text-slate-500 block">Accuracy</span>
-                    <span className="font-bold text-cyan-300">{(item.accuracy * 100).toFixed(1)}%</span>
+                    <span className="font-bold text-cyan-300">{formatMetricAsPercent(item.accuracy)}</span>
                   </div>
 
                   <div className="p-2 bg-slate-950/60 rounded border border-slate-800/80">
                     <span className="text-[10px] text-slate-500 block">Resolution Rate</span>
-                    <span className="font-bold text-slate-200">{(item.resolutionRate * 100).toFixed(1)}%</span>
+                    <span className="font-bold text-slate-200">{formatMetricAsPercent(item.resolutionRate)}</span>
                   </div>
 
                   <div className="p-2 bg-slate-950/60 rounded border border-slate-800/80">
                     <span className="text-[10px] text-slate-500 block">Precision / Recall</span>
                     <span className="font-bold text-emerald-400">
-                      {(item.precision * 100).toFixed(0)}% / {(item.recall * 100).toFixed(0)}%
+                      {formatMetricAsPercent(item.precision, 0)} / {formatMetricAsPercent(item.recall, 0)}
                     </span>
                   </div>
 
@@ -231,13 +232,13 @@ export default function BenchmarkPage() {
                           {new Date(run.startedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                         </td>
                         <td className="py-3 px-3 font-bold text-cyan-300">
-                          {run.accuracy !== null ? `${(run.accuracy * 100).toFixed(1)}%` : '92.5%'}
+                          {formatMetricAsPercent(run.accuracy)}
                         </td>
                         <td className="py-3 px-3 font-bold text-slate-200">
-                          {run.resolutionRate !== null ? `${(run.resolutionRate * 100).toFixed(1)}%` : '60.0%'}
+                          {formatMetricAsPercent(run.resolutionRate)}
                         </td>
                         <td className="py-3 px-3 text-emerald-400 font-bold">
-                          {run.precision !== undefined && run.precision !== null ? `${(run.precision * 100).toFixed(0)}%` : '100%'} / {run.recall !== undefined && run.recall !== null ? `${(run.recall * 100).toFixed(0)}%` : '100%'} / {run.f1Score !== undefined && run.f1Score !== null ? `${(run.f1Score * 100).toFixed(0)}%` : '100%'}
+                          {formatMetricAsPercent(run.precision, 0)} / {formatMetricAsPercent(run.recall, 0)} / {formatMetricAsPercent(run.f1Score, 0)}
                         </td>
                         <td className="py-3 px-3 text-purple-300">
                           {run.aiCallCount} calls / {run.aiEvaluatedCount ?? 0} evaluated

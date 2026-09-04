@@ -153,19 +153,14 @@ export const dbRepository = {
       recall?: number;
       f1Score?: number;
     }
-  ): Promise<ReconciliationRun | null> {
-    try {
-      return await prisma.reconciliationRun.update({
-        where: { id: runId },
-        data: {
-          ...metrics,
-          completedAt: new Date(),
-        },
-      });
-    } catch (err) {
-      console.error(`[dbRepository] Server-side log: Failed to complete run ${runId}:`, err);
-      return null;
-    }
+  ): Promise<ReconciliationRun> {
+    return prisma.reconciliationRun.update({
+      where: { id: runId },
+      data: {
+        ...metrics,
+        completedAt: new Date(),
+      },
+    });
   },
 
   async getBenchmarkRuns(): Promise<ReconciliationRun[]> {

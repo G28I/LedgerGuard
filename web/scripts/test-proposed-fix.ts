@@ -1,5 +1,5 @@
 import { generateSyntheticBenchmarkBatch } from '../features/synthetic';
-import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY } from '../features/reconciliation';
+import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY, isAiEligible } from '../features/reconciliation';
 import { generateCandidatePairs } from '../features/reconciliation/candidates';
 import { resolveAmbiguityWithAI } from '../features/ai';
 
@@ -34,20 +34,7 @@ async function testProposedFix() {
     const d = decisions[i];
     if (!d.invoiceId) continue;
 
-    // Strict Invariant Protection:
-    // 1. Locked deterministic matches (status === 'MATCHED')
-    // 2. Hard financial mismatches (AMOUNT_MISMATCH)
-    // 3. Zero-candidate cases (MISSING_RECORD)
-    // 4. Duplicate transaction safety flags (DUPLICATE_TRANSACTION_DETECTED)
-    // 5. Ambiguous candidate ties (AMBIGUOUS_MATCH_TIE) -> Genuinely ambiguous; MUST remain UNRESOLVED!
-    if (
-      d.status === 'MATCHED' ||
-      d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' ||
-      d.reasonCode === 'AMOUNT_MISMATCH' ||
-      d.reasonCode === 'MISSING_RECORD' ||
-      d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED' ||
-      d.reasonCode === 'AMBIGUOUS_MATCH_TIE'
-    ) {
+    if (!isAiEligible(d)) {
       continue;
     }
 
@@ -61,7 +48,13 @@ async function testProposedFix() {
       const aiResult = await resolveAmbiguityWithAI(invoiceObj, candidates, d, policy);
       const gt = dataset.groundTruthMap.get(d.invoiceId);
 
+      d.status = aiResult.status;
+      if (aiResult.selectedBankTxId) {
+        d.bankTransactionId = aiResult.selectedBankTxId;
+      }
       if (aiResult.status === 'MATCHED') {
+        d.method = 'AI';
+        d.exceptions = [];
         promotedMatches++;
         const isGtMatch = gt?.expectedStatus === 'MATCHED' && (
           gt.expectedMatchedBankTxId === null || 

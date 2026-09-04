@@ -1,5 +1,5 @@
 import { generateSyntheticBenchmarkBatch } from '../features/synthetic';
-import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY } from '../features/reconciliation';
+import { runReconciliationEngine, DEFAULT_RECONCILIATION_POLICY, isAiEligible } from '../features/reconciliation';
 import { generateCandidatePairs } from '../features/reconciliation/candidates';
 
 const dataset = generateSyntheticBenchmarkBatch({ seed: 42, totalCases: 200 });
@@ -32,10 +32,7 @@ console.log('Reason Code Breakdown:', reasonCounts);
 
 let eligibleCount = 0;
 decisions.forEach((d) => {
-  if (d.status === 'MATCHED' || d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' || d.reasonCode === 'AMOUNT_MISMATCH') {
-    return;
-  }
-  if (d.reasonCode === 'MISSING_RECORD' || d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED') {
+  if (!isAiEligible(d)) {
     return;
   }
   const c = candidatesMap.get(d.invoiceId ?? '');

@@ -24,16 +24,3 @@ Whenever a Pull Request is **opened**, **re-opened**, or **updated** (`synchroni
 * **Code Suggestions**: Generates actionable code improvement snippets directly on affected PR lines.
 * **Security & Quality Audit**: Checks for forbidden `any` types, floating-point monetary operations, and missing error handlers.
 
----
-
-## 3. Interactive PR Commands
-
-You can comment on any Pull Request with the following slash commands to trigger the PR Agent on demand:
-
-| Command | Action |
-|---|---|
-| `/review` | Triggers a full automated code review and feedback report |
-| `/describe` | Generates a structured PR title, description, and list of changes |
-| `/improve` | Recommends specific code quality and performance refactorings |
-| `/ask <question>` | Asks the PR Agent a specific technical question about the PR diff |
-| `/generate_labels` | Generates semantic labels for the PR based on changed files |

@@ -4,6 +4,7 @@ import { scoreBenchmarkRun } from '@/features/benchmark';
 import { runReconciliationEngine } from './engine';
 import { generateCandidatePairs } from './candidates';
 import { calculateVendorSimilarity } from './normalize';
+import { isAiEligible } from './safety';
 import { DEFAULT_RECONCILIATION_POLICY } from './types';
 import type { ReconciliationPolicyConfig, ExecuteRunParams, ReconciliationRunSummaryResponse } from './types';
 import { resolveAmbiguityWithAI } from '@/features/ai';
@@ -107,16 +108,8 @@ export const reconciliationService = {
           const d = decisions[i];
           if (!d.invoiceId) continue;
 
-          // Invariant Safety Check: Only UNRESOLVED records are eligible for AI resolution.
-          // Deterministic MATCHED, AMOUNT_MISMATCH, MISSING_RECORD, DUPLICATE, and AMBIGUOUS_MATCH_TIE decisions are NEVER processed by AI!
-          if (
-            d.status === 'MATCHED' ||
-            d.reasonCode === 'EXACT_REF_AND_AMOUNT_MATCH' ||
-            d.reasonCode === 'AMOUNT_MISMATCH' ||
-            d.reasonCode === 'MISSING_RECORD' ||
-            d.reasonCode === 'DUPLICATE_TRANSACTION_DETECTED' ||
-            d.reasonCode === 'AMBIGUOUS_MATCH_TIE'
-          ) {
+          // Invariant Safety Check: Only UNRESOLVED records that pass the safety predicate are eligible for AI.
+          if (!isAiEligible(d)) {
             continue;
           }
 
@@ -240,7 +233,7 @@ export const reconciliationService = {
           ledgerEntryId: d.ledgerEntryId,
           status: d.status,
           method: d.method,
-          aiUsed: d.method === 'AI',
+          aiUsed: Boolean(aiMeta),
           confidence: d.confidence,
           amountDeltaCents: d.amountDeltaCents,
           reasonCode: d.reasonCode,

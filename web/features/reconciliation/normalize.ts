@@ -146,10 +146,12 @@ function jaroDistance(s1: string, s2: string): number {
 }
 
 /**
- * Calculate absolute date difference in days between two Date objects.
+ * Calculate date difference in calendar days between two Date objects.
+ * Normalizes both timestamps to UTC calendar days to avoid partial-day drift.
  */
 export function calculateDateDeltaDays(date1: Date, date2: Date): number {
+  const utc1 = Date.UTC(date1.getUTCFullYear(), date1.getUTCMonth(), date1.getUTCDate());
+  const utc2 = Date.UTC(date2.getUTCFullYear(), date2.getUTCMonth(), date2.getUTCDate());
   const msPerDay = 1000 * 60 * 60 * 24;
-  const diffMs = date1.getTime() - date2.getTime();
-  return Math.round(diffMs / msPerDay);
+  return Math.floor((utc1 - utc2) / msPerDay);
 }

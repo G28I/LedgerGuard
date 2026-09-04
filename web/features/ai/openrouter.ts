@@ -122,8 +122,6 @@ Instructions:
           }),
         });
 
-        clearTimeout(timeoutId);
-
         if (!response.ok) {
           const errorText = await response.text();
           const isTransient = response.status === 429 || response.status >= 500;
@@ -144,7 +142,6 @@ Instructions:
         }
         return content;
       } catch (err: unknown) {
-        clearTimeout(timeoutId);
         lastError = err;
 
         // If AbortError (timeout) or transient error and retries remain
@@ -154,6 +151,8 @@ Instructions:
           continue;
         }
         break;
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 

@@ -39,7 +39,6 @@ export function scoreBenchmarkRun(
   let truePositives = 0; // GT = MATCHED, Prediction = MATCHED
   let falsePositives = 0; // Prediction = MATCHED, but GT = UNRESOLVED / MISMATCH
   let falseNegatives = 0; // GT = MATCHED, but Prediction = UNRESOLVED / MISMATCH
-  let trueNegatives = 0; // GT = UNRESOLVED / MISMATCH, Prediction = UNRESOLVED / MISMATCH
 
   let correctCount = 0;
   let incorrectCount = 0;
@@ -96,8 +95,6 @@ export function scoreBenchmarkRun(
       correctCount++;
       if (expectedStatus === 'MATCHED') {
         truePositives++;
-      } else {
-        trueNegatives++;
       }
     } else {
       incorrectCount++;
