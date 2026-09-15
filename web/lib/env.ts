@@ -3,7 +3,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   DATABASE_URL: z.string().url({ message: 'DATABASE_URL must be a valid PostgreSQL connection URL' }),
   OPENROUTER_API_KEY: z.string().min(1, { message: 'OPENROUTER_API_KEY is required for AI reasoning' }),
-  OPENROUTER_MODEL: z.string().default('google/gemini-2.0-flash-lite-preview-02-05:free'),
+  OPENROUTER_MODEL: z.string().default('nvidia/llama-3.1-nemotron-70b-instruct:free'),
   MOCK_OPENROUTER: z.string().default('false'),
   NEXT_PUBLIC_APP_URL: z.string().default('http://localhost:3000'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

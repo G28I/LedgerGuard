@@ -239,7 +239,7 @@ export function RecordDetailDrawer({ result, isBenchmark, onClose }: RecordDetai
               <div className="space-y-2 text-[11px] text-slate-300 font-sans">
                 <div>
                   <span className="text-slate-400 font-mono text-[10px] block">Model Provider:</span>
-                  <span className="font-mono text-indigo-300">{aiMetadata.model ?? 'google/gemini-2.0-flash-lite-preview-02-05:free'}</span>
+                  <span className="font-mono text-indigo-300">{aiMetadata.model ?? 'nvidia/llama-3.1-nemotron-70b-instruct:free'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 font-mono text-[10px] block">Model Reasoning:</span>

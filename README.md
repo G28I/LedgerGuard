@@ -116,7 +116,7 @@ LedgerGuard is evaluated against an independent, reproducible synthetic benchmar
 - **Framework**: Next.js 15 (App Router, TypeScript strict mode)
 - **Styling**: Tailwind CSS, Lucide icons (dark institutional theme, zero decorative AI fluff)
 - **Database & ORM**: PostgreSQL with Prisma ORM
-- **AI Provider**: OpenRouter Free Models (`google/gemini-2.0-flash-lite-preview-02-05:free`, `meta-llama/llama-3.3-70b-instruct:free`, with automatic zero-credit failover)
+- **AI Provider**: OpenRouter Free Models (`nvidia/llama-3.1-nemotron-70b-instruct:free`, `meta-llama/llama-3.3-70b-instruct:free`, with automatic zero-credit failover)
 - **Validation**: Zod (environment variables, API schemas, AI structured outputs)
 - **Synthetic Generator**: Faker (reproducible seeded dataset with offline ground-truth isolation)
 - **Architecture Specification**: Detailed interactive diagrams and pipeline flows are available in [docs/architecture.md](docs/architecture.md).

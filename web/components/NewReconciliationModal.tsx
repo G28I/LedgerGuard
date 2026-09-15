@@ -97,7 +97,7 @@ export function NewReconciliationModal({ onClose }: NewReconciliationModalProps)
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-300">Model Strategy</label>
               <div className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-[11px] text-slate-400 font-mono flex items-center justify-between">
-                <span>gemini-2.0-flash:free</span>
+                <span>nemotron-70b:free</span>
                 <Bot className="w-3.5 h-3.5 text-indigo-400" />
               </div>
             </div>
