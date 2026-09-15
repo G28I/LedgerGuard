@@ -1,8 +1,8 @@
 import { env } from '@/lib/env';
 import type { AIResolverInput } from './types';
 
-export const PRIMARY_OPENROUTER_MODEL = 'google/gemini-2.0-flash-001';
-export const FALLBACK_OPENROUTER_MODEL = 'qwen/qwen-2.5-72b-instruct';
+export const PRIMARY_OPENROUTER_MODEL = 'google/gemini-2.0-flash-lite-preview-02-05:free';
+export const FALLBACK_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
 export interface OpenRouterCallResult {
   rawJsonText: string;
