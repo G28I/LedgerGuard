@@ -171,7 +171,8 @@ export const dbRepository = {
 
   /**
    * Atomic Transaction Persistence for Run Results & Exceptions
-   * Ensures either ALL results and exceptions for a run are persisted, or NONE are (no partial rows).
+   * Uses high-performance bulk operations (createMany) to persist hundreds of results & exceptions in milliseconds
+   * without transaction timeouts on serverless databases (e.g., Neon, Supabase).
    */
   async persistRunResultsAndExceptionsTransaction(
     resultsData: Array<{
@@ -197,50 +198,49 @@ export const dbRepository = {
       }>;
     }>
   ) {
-    return prisma.$transaction(
-      async (tx) => {
-        const persistedResults = [];
+    const formattedResults: Prisma.ReconciliationResultCreateManyInput[] = [];
+    const formattedExceptions: Prisma.ExceptionCreateManyInput[] = [];
 
-        for (const res of resultsData) {
-          const resultRecord = await tx.reconciliationResult.create({
-            data: {
-              runId: res.runId,
-              invoiceId: res.invoiceId,
-              bankTransactionId: res.bankTransactionId,
-              ledgerEntryId: res.ledgerEntryId,
-              status: res.status,
-              method: res.method,
-              aiUsed: res.aiUsed ?? false,
-              confidence: res.confidence,
-              amountDeltaCents: res.amountDeltaCents ?? 0,
-              reasonCode: res.reasonCode,
-              explanation: res.explanation,
-              evidenceJson: res.evidenceJson !== undefined ? res.evidenceJson : Prisma.DbNull,
-              aiMetadataJson: res.aiMetadataJson !== undefined ? res.aiMetadataJson : Prisma.DbNull,
-            },
-          });
+    for (const res of resultsData) {
+      const resultId = crypto.randomUUID();
+      formattedResults.push({
+        id: resultId,
+        runId: res.runId,
+        invoiceId: res.invoiceId,
+        bankTransactionId: res.bankTransactionId,
+        ledgerEntryId: res.ledgerEntryId,
+        status: res.status,
+        method: res.method,
+        aiUsed: res.aiUsed ?? false,
+        confidence: res.confidence,
+        amountDeltaCents: res.amountDeltaCents ?? 0,
+        reasonCode: res.reasonCode,
+        explanation: res.explanation,
+        evidenceJson: res.evidenceJson !== undefined ? res.evidenceJson : Prisma.DbNull,
+        aiMetadataJson: res.aiMetadataJson !== undefined ? res.aiMetadataJson : Prisma.DbNull,
+      });
 
-          for (const exc of res.exceptions) {
-            await tx.exception.create({
-              data: {
-                runId: res.runId,
-                resultId: resultRecord.id,
-                type: exc.type,
-                priority: exc.priority ?? 'MEDIUM',
-                reason: exc.reason,
-                expectedValue: exc.expectedValue,
-                observedValue: exc.observedValue,
-              },
-            });
-          }
+      for (const exc of res.exceptions) {
+        formattedExceptions.push({
+          id: crypto.randomUUID(),
+          runId: res.runId,
+          resultId: resultId,
+          type: exc.type,
+          priority: exc.priority ?? 'MEDIUM',
+          reason: exc.reason,
+          expectedValue: exc.expectedValue,
+          observedValue: exc.observedValue,
+        });
+      }
+    }
 
-          persistedResults.push(resultRecord);
-        }
+    // Atomic bulk transaction: 2 SQL statements total instead of 200+ individual round trips
+    await prisma.$transaction([
+      prisma.reconciliationResult.createMany({ data: formattedResults }),
+      ...(formattedExceptions.length > 0 ? [prisma.exception.createMany({ data: formattedExceptions })] : []),
+    ]);
 
-        return persistedResults;
-      },
-      { timeout: 30000, maxWait: 10000 }
-    );
+    return formattedResults;
   },
 
   // Historical Run & Audit Queries

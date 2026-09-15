@@ -275,11 +275,11 @@ export const reconciliationService = {
 
       // 9. Return Typed Summary Response Contract
       const resultsSummary = persistedResults.slice(0, 10).map((r) => ({
-        id: r.id,
+        id: r.id ?? '',
         status: r.status,
         method: r.method,
         reasonCode: r.reasonCode,
-        amountDeltaCents: r.amountDeltaCents,
+        amountDeltaCents: r.amountDeltaCents ?? 0,
       }));
 
       return {
