@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LedgerGuard | Financial Reconciliation Control Center",
   description: "Autonomous multi-source financial reconciliation engine with deterministic & AI ambiguity resolution.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

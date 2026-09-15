@@ -9,7 +9,6 @@ import {
   AlertTriangle, 
   BarChart3,
   Play, 
-  ShieldCheck, 
   Menu, 
   X 
 } from 'lucide-react';
@@ -53,15 +52,17 @@ export function AppShell({ children }: AppShellProps) {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans antialiased">
       {/* Sidebar Navigation - Desktop */}
       <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 bg-slate-900/60 p-4 space-y-6 shrink-0">
-        <div className="flex items-center gap-3 px-2 py-1">
-          <div className="p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-lg text-indigo-400">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
+        <Link href="/" className="flex items-center gap-3 px-2 py-1 hover:opacity-90 transition-opacity">
+          <img
+            src="/logo.svg"
+            alt="LedgerGuard Logo"
+            className="w-9 h-9 rounded-lg shadow-md shadow-indigo-950/50"
+          />
           <div>
             <h1 className="font-bold text-slate-100 text-sm tracking-tight">LedgerGuard</h1>
             <p className="text-[11px] text-slate-400 font-mono">Finance Ops Controller</p>
           </div>
-        </div>
+        </Link>
 
         <button
           onClick={() => setIsNewRunModalOpen(true)}
@@ -109,10 +110,10 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Mobile Topbar Navigation */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-indigo-400" />
+        <Link href="/" className="flex items-center gap-2.5">
+          <img src="/logo.svg" alt="LedgerGuard Logo" className="w-6 h-6 rounded" />
           <span className="font-bold text-sm text-slate-100">LedgerGuard</span>
-        </div>
+        </Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-1 text-slate-400 hover:text-white"
