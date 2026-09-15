@@ -16,9 +16,12 @@ export const metadata: Metadata = {
   title: "LedgerGuard | Financial Reconciliation Control Center",
   description: "Autonomous multi-source financial reconciliation engine with deterministic & AI ambiguity resolution.",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/icon.png" },
+      { url: "/icon.svg" },
+    ],
+    shortcut: "/icon.png",
+    apple: "/apple-icon.png",
   },
 };
 

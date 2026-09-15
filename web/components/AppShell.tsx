@@ -54,9 +54,9 @@ export function AppShell({ children }: AppShellProps) {
       <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 bg-slate-900/60 p-4 space-y-6 shrink-0">
         <Link href="/" className="flex items-center gap-3 px-2 py-1 hover:opacity-90 transition-opacity">
           <img
-            src="/logo.svg"
+            src="/logo.png"
             alt="LedgerGuard Logo"
-            className="w-9 h-9 rounded-lg shadow-md shadow-indigo-950/50"
+            className="w-10 h-10 rounded-full object-cover shadow-lg shadow-emerald-950/40 border border-emerald-500/20"
           />
           <div>
             <h1 className="font-bold text-slate-100 text-sm tracking-tight">LedgerGuard</h1>
@@ -111,7 +111,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Mobile Topbar Navigation */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
         <Link href="/" className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="LedgerGuard Logo" className="w-6 h-6 rounded" />
+          <img src="/logo.png" alt="LedgerGuard Logo" className="w-7 h-7 rounded-full object-cover border border-emerald-500/20" />
           <span className="font-bold text-sm text-slate-100">LedgerGuard</span>
         </Link>
         <button
