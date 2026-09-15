@@ -175,12 +175,27 @@ export function generateSyntheticBenchmarkBatch(
       transactionDate: txDate,
     });
 
+    const ledgerId = `leg_var_${caseCounter}`;
+
+    ledgerEntries.push({
+      id: ledgerId,
+      entryRef: `LEG-${invRef}`,
+      cleanEntryRef: cleanStringRef(`LEG-${invRef}`),
+      accountCode: 'AP-2000',
+      description: `Ledger Posting - ${vendorShort}`,
+      normalizedDescription: normVendor(vendorShort),
+      amountCents,
+      currency: 'USD',
+      postingDate: txDate,
+    });
+
     groundTruthMap.set(invId, {
       caseId: `CASE-${caseCounter}`,
       scenarioType: isRefMemoVariation ? 'REF_VARIATION' : 'VENDOR_VARIATION',
       expectedStatus: 'MATCHED',
       expectedMatchedInvoiceId: invId,
       expectedMatchedBankTxId: bankId,
+      expectedMatchedLedgerEntryId: ledgerId,
       expectedExceptionType: null,
       diagnosticIntendedMethod: isRefMemoVariation ? 'DETERMINISTIC' : 'FUZZY',
     });
@@ -226,12 +241,27 @@ export function generateSyntheticBenchmarkBatch(
       transactionDate: txDate,
     });
 
+    const ledgerId = `leg_amt_mismatch_${caseCounter}`;
+
+    ledgerEntries.push({
+      id: ledgerId,
+      entryRef: `LEG-${invRef}`,
+      cleanEntryRef: cleanStringRef(`LEG-${invRef}`),
+      accountCode: 'AP-2000',
+      description: `Ledger Entry for ${vendor}`,
+      normalizedDescription: normVendor(vendor),
+      amountCents: invoiceAmountCents,
+      currency: 'USD',
+      postingDate: txDate,
+    });
+
     groundTruthMap.set(invId, {
       caseId: `CASE-${caseCounter}`,
       scenarioType: 'AMOUNT_MISMATCH',
       expectedStatus: 'MISMATCH',
       expectedMatchedInvoiceId: invId,
       expectedMatchedBankTxId: bankId,
+      expectedMatchedLedgerEntryId: ledgerId,
       expectedExceptionType: 'AMOUNT_MISMATCH',
       diagnosticIntendedMethod: 'FUZZY',
     });
@@ -251,6 +281,7 @@ export function generateSyntheticBenchmarkBatch(
 
     const invId = `inv_date_mismatch_${caseCounter}`;
     const bankId = `bank_date_mismatch_${caseCounter}`;
+    const ledgerId = `leg_date_mismatch_${caseCounter}`;
 
     invoices.push({
       id: invId,
@@ -274,12 +305,25 @@ export function generateSyntheticBenchmarkBatch(
       transactionDate: lateTxDate,
     });
 
+    ledgerEntries.push({
+      id: ledgerId,
+      entryRef: `LEG-${invRef}`,
+      cleanEntryRef: cleanStringRef(`LEG-${invRef}`),
+      accountCode: 'AP-2000',
+      description: `Ledger Entry for ${vendor}`,
+      normalizedDescription: normVendor(vendor),
+      amountCents,
+      currency: 'USD',
+      postingDate: lateTxDate,
+    });
+
     groundTruthMap.set(invId, {
       caseId: `CASE-${caseCounter}`,
       scenarioType: 'DATE_MISMATCH',
       expectedStatus: 'UNRESOLVED',
       expectedMatchedInvoiceId: invId,
       expectedMatchedBankTxId: bankId,
+      expectedMatchedLedgerEntryId: ledgerId,
       expectedExceptionType: 'DATE_MISMATCH',
       diagnosticIntendedMethod: 'FUZZY',
     });
@@ -337,6 +381,7 @@ export function generateSyntheticBenchmarkBatch(
     const invId = `inv_dup_${caseCounter}`;
     const bankIdA = `bank_dup_${caseCounter}_A`;
     const bankIdB = `bank_dup_${caseCounter}_B`;
+    const ledgerId = `leg_dup_${caseCounter}`;
 
     invoices.push({
       id: invId,
@@ -374,12 +419,25 @@ export function generateSyntheticBenchmarkBatch(
       transactionDate: txDate,
     });
 
+    ledgerEntries.push({
+      id: ledgerId,
+      entryRef: `LEG-${invRef}`,
+      cleanEntryRef: cleanStringRef(`LEG-${invRef}`),
+      accountCode: 'AP-2000',
+      description: `Ledger Entry for ${vendor}`,
+      normalizedDescription: normVendor(vendor),
+      amountCents,
+      currency: 'USD',
+      postingDate: txDate,
+    });
+
     groundTruthMap.set(invId, {
       caseId: `CASE-${caseCounter}`,
       scenarioType: 'DUPLICATE',
       expectedStatus: 'UNRESOLVED',
       expectedMatchedInvoiceId: invId,
       expectedMatchedBankTxId: bankIdA,
+      expectedMatchedLedgerEntryId: ledgerId,
       expectedExceptionType: 'DUPLICATE',
       diagnosticIntendedMethod: 'FUZZY',
     });
@@ -400,6 +458,7 @@ export function generateSyntheticBenchmarkBatch(
     const invId = `inv_ambig_${caseCounter}`;
     const bankIdA = `bank_ambig_${caseCounter}_A`;
     const bankIdB = `bank_ambig_${caseCounter}_B`;
+    const ledgerId = `leg_ambig_${caseCounter}`;
 
     invoices.push({
       id: invId,
@@ -435,12 +494,25 @@ export function generateSyntheticBenchmarkBatch(
       transactionDate: txDate,
     });
 
+    ledgerEntries.push({
+      id: ledgerId,
+      entryRef: `LEG-${invRef}`,
+      cleanEntryRef: cleanStringRef(`LEG-${invRef}`),
+      accountCode: 'AP-2000',
+      description: `Ledger Entry for ${baseName}`,
+      normalizedDescription: normVendor(baseName),
+      amountCents,
+      currency: 'USD',
+      postingDate: txDate,
+    });
+
     groundTruthMap.set(invId, {
       caseId: `CASE-${caseCounter}`,
       scenarioType: 'AMBIGUOUS_MATCH',
       expectedStatus: 'UNRESOLVED',
       expectedMatchedInvoiceId: invId,
       expectedMatchedBankTxId: bankIdA,
+      expectedMatchedLedgerEntryId: ledgerId,
       expectedExceptionType: 'AMBIGUOUS_MATCH',
       diagnosticIntendedMethod: 'FUZZY',
     });

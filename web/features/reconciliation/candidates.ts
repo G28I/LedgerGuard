@@ -56,7 +56,7 @@ export function generateCandidatePairs(
     }
   }
 
-  // Index Ledger Entries by Entry Ref
+  // Index Ledger Entries by Entry Ref, Extracted Ref, and Memo Tokens
   const ledgerByRef = new Map<string, NormalizedLedgerEntry[]>();
   for (const entry of ledgerEntries) {
     const refKey = cleanRef(entry.entryRef);
@@ -64,6 +64,13 @@ export function generateCandidatePairs(
       const list = ledgerByRef.get(refKey) ?? [];
       list.push(entry);
       ledgerByRef.set(refKey, list);
+    }
+
+    const extractedRef = extractReferenceToken(entry.entryRef) || extractReferenceToken(entry.description);
+    if (extractedRef) {
+      const list = ledgerByRef.get(extractedRef) ?? [];
+      list.push(entry);
+      ledgerByRef.set(extractedRef, list);
     }
   }
 
