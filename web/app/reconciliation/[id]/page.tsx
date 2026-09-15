@@ -325,8 +325,12 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as 'ALL' | 'MATCHED' | 'UNRESOLVED' | 'AI_EVALUATED')}
-                  className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 whitespace-nowrap ${
+                  onClick={() => {
+                    setActiveTab(tab.id as 'ALL' | 'MATCHED' | 'UNRESOLVED' | 'AI_EVALUATED');
+                    setSelectedMethod('ALL');
+                    setSelectedExceptionType('ALL');
+                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     activeTab === tab.id
                       ? 'bg-slate-800 text-white font-semibold border-b-2 border-indigo-500'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
