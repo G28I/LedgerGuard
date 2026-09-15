@@ -18,36 +18,53 @@ export async function callOpenRouterAIResolver(
   input: AIResolverInput,
   preferredModel: string = PRIMARY_OPENROUTER_MODEL
 ): Promise<OpenRouterCallResult> {
-  // Support mock mode for deterministic offline testing when OpenRouter API credits are unavailable
-  if (process.env.MOCK_OPENROUTER === 'true') {
+  const startTime = Date.now();
+  let actualModel = preferredModel;
+
+  const getSimulatedFallback = (reason: string): OpenRouterCallResult => {
     const topCandidate = input.candidates[0];
+    const sim = topCandidate ? topCandidate.vendorSimilarity : 0.50;
+    const dateProx = topCandidate ? Math.max(0, 1 - Math.abs(topCandidate.dateDeltaDays) / 30) : 0.50;
+    const amtAgreement = topCandidate && topCandidate.amountDeltaCents === 0 ? 1.0 : 0.20;
+
+    const dynamicMatchConfidence = Number((0.75 + sim * 0.15 + dateProx * 0.08).toFixed(2));
+    const dynamicUnresolvedConfidence = Number(Math.max(0.32, Math.min(0.68, sim * 0.40 + amtAgreement * 0.15 + dateProx * 0.10)).toFixed(2));
+
     const isGoodMatch = topCandidate && topCandidate.vendorSimilarity >= 0.70 && topCandidate.amountDeltaCents === 0;
 
     const mockOutput = isGoodMatch
       ? {
           decision: 'MATCH',
           selectedBankTxId: topCandidate.bankTxId,
-          confidenceScore: 0.92,
-          reasoning: `AI Model (${preferredModel}): Identified valid settlement match for ${input.invoice.vendorName} based on high vendor similarity (${(topCandidate.vendorSimilarity * 100).toFixed(0)}%) and exact amount agreement.`,
+          confidenceScore: dynamicMatchConfidence,
+          reasoning: `Financial AI (${reason}): Identified valid settlement match for ${input.invoice.vendorName} based on ${(sim * 100).toFixed(0)}% vendor similarity and exact amount agreement.`,
           keyEvidence: [
-            `Vendor similarity ${(topCandidate.vendorSimilarity * 100).toFixed(0)}%`,
+            `Vendor similarity ${(sim * 100).toFixed(0)}%`,
             `Exact amount settlement $${(topCandidate.amountCents / 100).toFixed(2)}`,
-            `Valid date proximity (${topCandidate.dateDeltaDays} days)`,
+            `Transaction date within ${Math.abs(topCandidate.dateDeltaDays)} days`,
           ],
         }
       : {
           decision: 'UNRESOLVED',
           selectedBankTxId: null,
-          confidenceScore: 0.45,
-          reasoning: `AI Model (${preferredModel}): Evidence insufficient or multiple plausible candidates tie. Safety policy requires human auditor review.`,
-          keyEvidence: ['Ambiguous or conflicting candidate evidence'],
+          confidenceScore: dynamicUnresolvedConfidence,
+          reasoning: `Financial AI (${reason}): Candidate evidence is below safety threshold (${topCandidate ? (sim * 100).toFixed(0) + '% vendor similarity' : 'no plausible candidates'}). Retaining UNRESOLVED for human review.`,
+          keyEvidence: [
+            topCandidate ? `Candidate vendor similarity: ${(sim * 100).toFixed(0)}%` : 'No candidate records found',
+            topCandidate && topCandidate.amountDeltaCents !== 0 ? `Amount discrepancy: $${(Math.abs(topCandidate.amountDeltaCents) / 100).toFixed(2)}` : 'Potential candidate tie',
+          ],
         };
 
     return {
       rawJsonText: JSON.stringify(mockOutput),
-      actualModelUsed: `${preferredModel} (Mock)`,
-      promptDurationMs: 15,
+      actualModelUsed: `${preferredModel} (${reason})`,
+      promptDurationMs: Date.now() - startTime,
     };
+  };
+
+  // Support mock mode for deterministic offline testing when OpenRouter API credits are unavailable
+  if (process.env.MOCK_OPENROUTER === 'true') {
+    return getSimulatedFallback('Offline Deterministic Engine');
   }
 
   const apiKey = env.OPENROUTER_API_KEY;
@@ -82,9 +99,6 @@ Instructions:
   "reasoning": "brief explanation",
   "keyEvidence": ["list of evidence bullet points"]
 }`;
-
-  const startTime = Date.now();
-  let actualModel = preferredModel;
 
   const tryCall = async (model: string, retryAttempts: number = 1): Promise<string> => {
     let attempt = 0;
@@ -157,48 +171,6 @@ Instructions:
     }
 
     throw lastError;
-  };
-
-  const getSimulatedFallback = (reason: string): OpenRouterCallResult => {
-    const topCandidate = input.candidates[0];
-    // Dynamically calculate calibrated confidence score from evidence signals
-    const sim = topCandidate ? topCandidate.vendorSimilarity : 0.50;
-    const dateProx = topCandidate ? Math.max(0, 1 - Math.abs(topCandidate.dateDeltaDays) / 30) : 0.50;
-    const amtAgreement = topCandidate && topCandidate.amountDeltaCents === 0 ? 1.0 : 0.20;
-
-    const dynamicMatchConfidence = Number((0.75 + sim * 0.15 + dateProx * 0.08).toFixed(2));
-    const dynamicUnresolvedConfidence = Number(Math.max(0.32, Math.min(0.68, sim * 0.40 + amtAgreement * 0.15 + dateProx * 0.10)).toFixed(2));
-
-    const isGoodMatch = topCandidate && topCandidate.vendorSimilarity >= 0.70 && topCandidate.amountDeltaCents === 0;
-
-    const mockOutput = isGoodMatch
-      ? {
-          decision: 'MATCH',
-          selectedBankTxId: topCandidate.bankTxId,
-          confidenceScore: dynamicMatchConfidence,
-          reasoning: `Financial AI (${reason}): Identified valid settlement match for ${input.invoice.vendorName} based on ${(sim * 100).toFixed(0)}% vendor similarity and exact amount agreement.`,
-          keyEvidence: [
-            `Vendor similarity ${(sim * 100).toFixed(0)}%`,
-            `Exact amount settlement $${(topCandidate.amountCents / 100).toFixed(2)}`,
-            `Transaction date within ${Math.abs(topCandidate.dateDeltaDays)} days`,
-          ],
-        }
-      : {
-          decision: 'UNRESOLVED',
-          selectedBankTxId: null,
-          confidenceScore: dynamicUnresolvedConfidence,
-          reasoning: `Financial AI (${reason}): Candidate evidence is below safety threshold (${topCandidate ? (sim * 100).toFixed(0) + '% vendor similarity' : 'no plausible candidates'}). Retaining UNRESOLVED for human review.`,
-          keyEvidence: [
-            topCandidate ? `Candidate vendor similarity: ${(sim * 100).toFixed(0)}%` : 'No candidate records found',
-            topCandidate && topCandidate.amountDeltaCents !== 0 ? `Amount discrepancy: $${(Math.abs(topCandidate.amountDeltaCents) / 100).toFixed(2)}` : 'Potential candidate tie',
-          ],
-        };
-
-    return {
-      rawJsonText: JSON.stringify(mockOutput),
-      actualModelUsed: `${preferredModel} (${reason})`,
-      promptDurationMs: Date.now() - startTime,
-    };
   };
 
   try {
