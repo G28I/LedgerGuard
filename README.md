@@ -119,6 +119,7 @@ LedgerGuard is evaluated against an independent, reproducible synthetic benchmar
 - **AI Provider**: OpenRouter API (`google/gemini-2.0-flash-001`, with automatic model detection & failover)
 - **Validation**: Zod (environment variables, API schemas, AI structured outputs)
 - **Synthetic Generator**: Faker (reproducible seeded dataset with offline ground-truth isolation)
+- **Architecture Specification**: Detailed interactive diagrams and pipeline flows are available in [docs/architecture.md](docs/architecture.md).
 
 ### Repository Structure
 
