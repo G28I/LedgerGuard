@@ -8,7 +8,8 @@ import {
   ArrowLeft, 
   Search, 
   Filter, 
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { formatMetricAsPercent } from '@/lib/format';
 
@@ -197,6 +198,35 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
 
   const aiEvaluatedCount = data.aiEvaluatedCount ?? data.results.filter((r) => r.aiUsed).length;
 
+  const exportCSV = () => {
+    if (!data?.results?.length) return;
+    const headers = ['Status', 'Method', 'Confidence', 'Invoice No', 'Vendor', 'Invoice Amount ($)', 'Bank Ref', 'Bank Description', 'Bank Amount ($)', 'Ledger Ref', 'Delta ($)', 'Reason Code', 'Explanation'];
+    const rows = data.results.map((r) => [
+      r.status,
+      r.method,
+      r.confidence !== null ? `${(r.confidence * 100).toFixed(0)}%` : '—',
+      `"${r.invoice?.invoiceNumber || ''}"`,
+      `"${(r.invoice?.vendorName || '').replace(/"/g, '""')}"`,
+      r.invoice?.amountCents ? (r.invoice.amountCents / 100).toFixed(2) : '',
+      `"${r.bankTransaction?.transactionRef || ''}"`,
+      `"${(r.bankTransaction?.description || '').replace(/"/g, '""')}"`,
+      r.bankTransaction?.amountCents ? (r.bankTransaction.amountCents / 100).toFixed(2) : '',
+      `"${r.ledgerEntry?.entryRef || ''}"`,
+      (r.amountDeltaCents / 100).toFixed(2),
+      `"${r.reasonCode}"`,
+      `"${(r.explanation || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ledgerguard-${data.runNumber.toLowerCase()}-audit.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <AppShell>
       <div className="p-6 space-y-6 max-w-[1600px] mx-auto w-full">
@@ -226,8 +256,16 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
               </div>
             </div>
 
-            <div className="text-right font-mono text-[11px] text-slate-400 hidden sm:block">
-              <span>Executed {new Date(data.startedAt).toLocaleString()}</span>
+            <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400">
+              <button
+                onClick={exportCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-700 hover:bg-slate-800 hover:border-slate-600 text-slate-200 rounded-lg text-xs font-sans font-medium transition-colors shadow-sm"
+                title="Export Reconciliation Audit Trail to CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Export Audit CSV</span>
+              </button>
+              <span className="hidden sm:inline">Executed {new Date(data.startedAt).toLocaleString()}</span>
             </div>
           </div>
 
