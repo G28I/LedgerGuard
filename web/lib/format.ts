@@ -17,3 +17,14 @@ export function formatMetricAsPercent(
   // Otherwise it's a normalized ratio (0.0 to 1.0)
   return `${(value * 100).toFixed(precision)}%`;
 }
+
+export function formatCentsToCurrency(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined || Number.isNaN(cents)) {
+    return '$0.00';
+  }
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(cents / 100);
+}
+

@@ -310,10 +310,16 @@ export const dbRepository = {
     const bankTransactionsCount = await prisma.bankTransaction.count();
     const ledgerEntriesCount = await prisma.ledgerEntry.count();
 
+    const totalVolumeResult = await prisma.invoice.aggregate({
+      _sum: { amountCents: true },
+    });
+    const totalVolumeCents = totalVolumeResult._sum.amountCents ?? 0;
+
     return {
       latestRun,
       recentRuns,
       exceptionBreakdown,
+      totalVolumeCents,
       sourceCounts: {
         invoices: invoicesCount,
         bankTransactions: bankTransactionsCount,

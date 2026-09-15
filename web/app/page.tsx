@@ -12,10 +12,11 @@ import {
   Play, 
   Loader2,
   FileCheck,
-  ShieldAlert
+  ShieldAlert,
+  BarChart3
 } from 'lucide-react';
 import { NewReconciliationModal } from '@/components/NewReconciliationModal';
-import { formatMetricAsPercent } from '@/lib/format';
+import { formatMetricAsPercent, formatCentsToCurrency } from '@/lib/format';
 
 interface OverviewMetricsData {
   latestRun: {
@@ -47,6 +48,7 @@ interface OverviewMetricsData {
     startedAt: string;
   }>;
   exceptionBreakdown: Record<string, number>;
+  totalVolumeCents?: number;
   sourceCounts: {
     invoices: number;
     bankTransactions: number;
@@ -136,13 +138,21 @@ export default function OverviewPage() {
           </div>
         ) : (
           <>
-            {/* Latest Completed Run Summary KPI Cards */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                <span>Latest Reconciliation Run State ({latestRun ? latestRun.runNumber : 'No runs executed'})</span>
+            {/* Executive Summary KPI Cards */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-indigo-400" />
+                    Executive Summary & Operational KPIs
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Real-time operational health for {latestRun ? latestRun.runNumber : 'latest batch'} across multi-source ledgers.
+                  </p>
+                </div>
                 {latestRun?.startedAt && (
-                  <span className="font-mono text-[11px]">
-                    {new Date(latestRun.startedAt).toLocaleString()}
+                  <span className="font-mono text-[11px] text-slate-400 bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">
+                    Executed {new Date(latestRun.startedAt).toLocaleString()}
                   </span>
                 )}
               </div>
@@ -150,7 +160,7 @@ export default function OverviewPage() {
               {/* Source Composition Indicator */}
               {data?.sourceCounts && (
                 <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500">
-                  <span className="text-slate-600">Sources:</span>
+                  <span className="text-slate-600">Multi-Source Pool:</span>
                   <span className="px-1.5 py-0.5 bg-slate-900/60 border border-slate-800 rounded text-slate-400">
                     Invoices {data.sourceCounts.invoices}
                   </span>
@@ -160,8 +170,8 @@ export default function OverviewPage() {
                   <span className="px-1.5 py-0.5 bg-slate-900/60 border border-slate-800 rounded text-slate-400">
                     Ledger {data.sourceCounts.ledgerEntries}
                   </span>
-                  <span className="text-slate-600">
-                    ({data.sourceCounts.totalSourceRecords} total)
+                  <span className="text-slate-500">
+                    ({data.sourceCounts.totalSourceRecords} Total Ingested Records)
                   </span>
                 </div>
               )}
@@ -169,72 +179,98 @@ export default function OverviewPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
-                    <FileCheck className="w-3.5 h-3.5 text-slate-400" />
-                    Records
+                    <FileCheck className="w-3.5 h-3.5 text-indigo-400" />
+                    Total Processed Volume
                   </span>
-                  <p className="text-xl font-bold font-mono text-slate-100">
-                    {latestRun ? latestRun.totalRecords : 0}
+                  <p className="text-lg font-bold font-mono text-slate-100">
+                    {data?.totalVolumeCents ? formatCentsToCurrency(data.totalVolumeCents) : `${latestRun ? latestRun.totalRecords : 0} Records`}
                   </p>
+                  <span className="text-[10px] font-mono text-slate-500 block">
+                    {latestRun ? `${latestRun.totalRecords} Records Evaluated` : '0 Records'}
+                  </span>
                 </div>
 
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    Matched
+                    Matched Volume
                   </span>
-                  <p className="text-xl font-bold font-mono text-emerald-400">
+                  <p className="text-lg font-bold font-mono text-emerald-400">
                     {latestRun ? latestRun.matchedCount : 0}
                   </p>
+                  <span className="text-[10px] font-mono text-emerald-500/70 block">
+                    Zero-variance settled
+                  </span>
                 </div>
 
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                    Unresolved
+                    Unresolved Items
                   </span>
-                  <p className="text-xl font-bold font-mono text-amber-400">
+                  <p className="text-lg font-bold font-mono text-amber-400">
                     {latestRun ? latestRun.unresolvedCount : 0}
                   </p>
+                  <span className="text-[10px] font-mono text-amber-500/70 block">
+                    Pending triage / rules
+                  </span>
                 </div>
 
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
                     <GitCompare className="w-3.5 h-3.5 text-indigo-400" />
-                    Resolution Rate
+                    Match Rate
                   </span>
-                  <p className="text-xl font-bold font-mono text-slate-100">
+                  <p className="text-lg font-bold font-mono text-slate-100">
                     {formatMetricAsPercent(latestRun?.resolutionRate)}
                   </p>
+                  <span className="text-[10px] font-mono text-slate-500 block">
+                    Automated resolution
+                  </span>
                 </div>
 
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
                     <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" />
-                    Accuracy
+                    Precision / Accuracy
                   </span>
-                  <p className="text-xl font-bold font-mono text-cyan-300">
+                  <p className="text-lg font-bold font-mono text-cyan-300">
                     {formatMetricAsPercent(latestRun?.accuracy)}
                   </p>
+                  <span className="text-[10px] font-mono text-cyan-500/70 block">
+                    {latestRun ? 'Ground-truth audited' : 'Awaiting run'}
+                  </span>
                 </div>
 
                 <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5 text-purple-400" />
-                    AI Calls
+                    AI Resolvers
                   </span>
-                  <p className="text-xl font-bold font-mono text-purple-300">
+                  <p className="text-lg font-bold font-mono text-purple-300">
                     {latestRun ? latestRun.aiCallCount : 0}
                   </p>
+                  <span className="text-[10px] font-mono text-purple-400/70 block">
+                    Ambiguity inferences
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Middle Grid: Exception Type Breakdown & Quick Link */}
+            {/* Middle Grid: Discrepancy Breakdown & Quick Link */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Exception Distribution */}
+              {/* Discrepancy Breakdown */}
               <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-semibold text-slate-200 tracking-tight">Open Exception Type Breakdown</h2>
+                  <div>
+                    <h2 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      Discrepancy Breakdown & Exception Distribution
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Categorized variance taxonomy across unresolved financial transactions.
+                    </p>
+                  </div>
                   <Link
                     href="/exceptions"
                     className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
