@@ -166,15 +166,26 @@ export const reconciliationService = {
                 explanation: `AI-Assisted Resolution (${aiResult.actualModelUsed}): ${aiResult.reasoning}`,
                 exceptions: [], // Clear unresolved exception on successful AI match
               };
-            } else if (aiResult.exceptionType) {
-              // Provider or Zod error -> Append Exception while preserving UNRESOLVED status
-              decisions[i].exceptions.push({
-                type: aiResult.exceptionType,
-                priority: 'HIGH',
-                reason: aiResult.exceptionReason ?? 'AI resolution provider error',
-                expectedValue: 'Valid JSON response from OpenRouter',
-                observedValue: aiResult.reasoning,
-              });
+            } else {
+              // AI evaluated and confirmed UNRESOLVED or exception
+              const updatedExceptions = [...d.exceptions];
+              if (aiResult.exceptionType) {
+                updatedExceptions.push({
+                  type: aiResult.exceptionType,
+                  priority: 'HIGH',
+                  reason: aiResult.exceptionReason ?? 'AI resolution provider error',
+                  expectedValue: 'Valid JSON response from OpenRouter',
+                  observedValue: aiResult.reasoning,
+                });
+              }
+
+              decisions[i] = {
+                ...d,
+                method: 'AI',
+                confidence: aiResult.confidenceScore ?? null,
+                explanation: `AI Evaluated (${aiResult.actualModelUsed}): ${aiResult.reasoning}`,
+                exceptions: updatedExceptions,
+              };
             }
           }
         }

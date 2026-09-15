@@ -166,7 +166,13 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
     if (activeTab === 'AI_EVALUATED' && !item.aiUsed) return false;
 
     // 2. Method filter
-    if (selectedMethod !== 'ALL' && item.method !== selectedMethod) return false;
+    if (selectedMethod !== 'ALL') {
+      if (selectedMethod === 'AI') {
+        if (item.method !== 'AI' && !item.aiUsed) return false;
+      } else {
+        if (item.method !== selectedMethod) return false;
+      }
+    }
 
     // 3. Exception Type filter
     if (selectedExceptionType !== 'ALL') {
