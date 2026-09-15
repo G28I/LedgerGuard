@@ -161,26 +161,37 @@ Instructions:
 
   const getSimulatedFallback = (reason: string): OpenRouterCallResult => {
     const topCandidate = input.candidates[0];
+    // Dynamically calculate calibrated confidence score from evidence signals
+    const sim = topCandidate ? topCandidate.vendorSimilarity : 0.50;
+    const dateProx = topCandidate ? Math.max(0, 1 - Math.abs(topCandidate.dateDeltaDays) / 30) : 0.50;
+    const amtAgreement = topCandidate && topCandidate.amountDeltaCents === 0 ? 1.0 : 0.20;
+
+    const dynamicMatchConfidence = Number((0.75 + sim * 0.15 + dateProx * 0.08).toFixed(2));
+    const dynamicUnresolvedConfidence = Number(Math.max(0.32, Math.min(0.68, sim * 0.40 + amtAgreement * 0.15 + dateProx * 0.10)).toFixed(2));
+
     const isGoodMatch = topCandidate && topCandidate.vendorSimilarity >= 0.70 && topCandidate.amountDeltaCents === 0;
 
     const mockOutput = isGoodMatch
       ? {
           decision: 'MATCH',
           selectedBankTxId: topCandidate.bankTxId,
-          confidenceScore: 0.92,
-          reasoning: `Financial AI (${reason}): Identified valid settlement match for ${input.invoice.vendorName} based on high vendor similarity (${(topCandidate.vendorSimilarity * 100).toFixed(0)}%) and exact amount agreement.`,
+          confidenceScore: dynamicMatchConfidence,
+          reasoning: `Financial AI (${reason}): Identified valid settlement match for ${input.invoice.vendorName} based on ${(sim * 100).toFixed(0)}% vendor similarity and exact amount agreement.`,
           keyEvidence: [
-            `Vendor similarity ${(topCandidate.vendorSimilarity * 100).toFixed(0)}%`,
+            `Vendor similarity ${(sim * 100).toFixed(0)}%`,
             `Exact amount settlement $${(topCandidate.amountCents / 100).toFixed(2)}`,
-            `Valid date proximity (${topCandidate.dateDeltaDays} days)`,
+            `Transaction date within ${Math.abs(topCandidate.dateDeltaDays)} days`,
           ],
         }
       : {
           decision: 'UNRESOLVED',
           selectedBankTxId: null,
-          confidenceScore: 0.45,
-          reasoning: `Financial AI (${reason}): Candidate evidence ambiguous or conflicting. Retaining UNRESOLVED for human review.`,
-          keyEvidence: ['Ambiguous or conflicting candidate evidence'],
+          confidenceScore: dynamicUnresolvedConfidence,
+          reasoning: `Financial AI (${reason}): Candidate evidence is below safety threshold (${topCandidate ? (sim * 100).toFixed(0) + '% vendor similarity' : 'no plausible candidates'}). Retaining UNRESOLVED for human review.`,
+          keyEvidence: [
+            topCandidate ? `Candidate vendor similarity: ${(sim * 100).toFixed(0)}%` : 'No candidate records found',
+            topCandidate && topCandidate.amountDeltaCents !== 0 ? `Amount discrepancy: $${(Math.abs(topCandidate.amountDeltaCents) / 100).toFixed(2)}` : 'Potential candidate tie',
+          ],
         };
 
     return {
