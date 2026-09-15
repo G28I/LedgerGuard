@@ -31,7 +31,7 @@ export function NewReconciliationModal({ onClose }: NewReconciliationModalProps)
       const data = await res.json();
 
       if (!res.ok || data.status === 'FAILED') {
-        throw new Error(data.message || data.error || 'Failed to execute reconciliation run');
+        throw new Error(data.errorMessage || data.message || data.error || 'Failed to execute reconciliation run');
       }
 
       onClose();
@@ -110,7 +110,7 @@ export function NewReconciliationModal({ onClose }: NewReconciliationModalProps)
                 <Database className="w-3.5 h-3.5 text-indigo-400" />
                 Source Dataset Composition (Seed {seed})
               </span>
-              <span className="text-[11px] font-mono text-slate-400">480 Total Records</span>
+              <span className="text-[11px] font-mono text-slate-400">580 Total Records</span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-1 text-[11px] font-mono">
               <div className="bg-slate-900 border border-slate-800/80 p-2 rounded text-center">
@@ -123,7 +123,7 @@ export function NewReconciliationModal({ onClose }: NewReconciliationModalProps)
               </div>
               <div className="bg-slate-900 border border-slate-800/80 p-2 rounded text-center">
                 <span className="block text-slate-400 text-[10px]">Ledger Entries</span>
-                <span className="font-bold text-slate-200">80</span>
+                <span className="font-bold text-slate-200">180</span>
               </div>
             </div>
           </div>
