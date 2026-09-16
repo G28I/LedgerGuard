@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X, Bot, FileText, Database, Layers } from 'lucide-react';
+import { X, FileText, Database, Layers, Sparkles, Activity, ShieldCheck } from 'lucide-react';
 
 interface RecordDetailItem {
   id: string;
@@ -114,10 +114,47 @@ export function RecordDetailDrawer({ result, isBenchmark, onClose }: RecordDetai
               <p className="text-slate-400 text-xs leading-relaxed font-sans">{result.explanation}</p>
             </div>
 
+            {/* Visual Confidence Gauge */}
             {result.confidence !== null && (
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                <span className="text-slate-400">Confidence Signal:</span>
-                <span className="font-bold text-slate-200">{Math.round(result.confidence * 100)}%</span>
+              <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                    Confidence Gauge:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                      result.confidence >= 0.85
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : result.confidence >= 0.65
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    }`}>
+                      {result.confidence >= 0.85
+                        ? 'HIGH CONFIDENCE'
+                        : result.confidence >= 0.65
+                        ? 'CALIBRATED MATCH'
+                        : 'UNRESOLVED AMBIGUITY'}
+                    </span>
+                    <span className="font-bold text-slate-100 font-mono text-xs">
+                      {Math.round(result.confidence * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Gauge Progress Bar */}
+                <div className="w-full bg-slate-900 border border-slate-800 h-2.5 rounded-full overflow-hidden p-0.5">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      result.confidence >= 0.85
+                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
+                        : result.confidence >= 0.65
+                        ? 'bg-gradient-to-r from-amber-600 to-amber-400'
+                        : 'bg-gradient-to-r from-purple-600 to-purple-400'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(5, Math.round(result.confidence * 100)))}%` }}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -221,51 +258,60 @@ export function RecordDetailDrawer({ result, isBenchmark, onClose }: RecordDetai
             </div>
           </div>
 
-          {/* Section 3: Audit Trail & AI Details */}
-          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3 font-mono">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                <Bot className="w-3.5 h-3.5 text-purple-400" />
-                Audit Trail & AI Execution Details
+          {/* Section 3: AI Reasoning Trace & Audit Trail */}
+          <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3 font-mono">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <span className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                AI Reasoning Trace & Inference Log
               </span>
-              <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${
-                result.aiUsed ? 'bg-purple-950 text-purple-300 border border-purple-800' : 'bg-slate-800 text-slate-400'
+              <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+                result.aiUsed 
+                  ? 'bg-purple-950/80 text-purple-300 border-purple-700/60' 
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}>
-                AI Used: {result.aiUsed ? 'YES' : 'NO'}
+                {result.aiUsed ? 'AI INFERENCE ACTIVE' : 'RULE-BASED DETERMINISTIC'}
               </span>
             </div>
 
             {result.aiUsed && aiMetadata ? (
-              <div className="space-y-2 text-[11px] text-slate-300 font-sans">
-                <div>
-                  <span className="text-slate-400 font-mono text-[10px] block">Model Provider:</span>
-                  <span className="font-mono text-indigo-300">{aiMetadata.model ?? 'nvidia/llama-3.1-nemotron-70b-instruct:free'}</span>
+              <div className="space-y-3 text-[11px] text-slate-300 font-sans">
+                <div className="flex items-center justify-between bg-slate-900/90 p-2 rounded border border-slate-800 font-mono text-[10px]">
+                  <span className="text-slate-400">Inference Engine:</span>
+                  <span className="text-purple-300 font-semibold px-1.5 py-0.5 bg-purple-950/60 rounded border border-purple-800/40">
+                    {aiMetadata.model ?? 'nvidia/llama-3.1-nemotron-70b-instruct:free'}
+                  </span>
                 </div>
-                <div>
-                  <span className="text-slate-400 font-mono text-[10px] block">Model Reasoning:</span>
-                  <p className="bg-slate-900 p-2.5 rounded border border-slate-800 text-slate-300 text-xs leading-relaxed font-sans">
-                    {aiMetadata.reasoning}
-                  </p>
+
+                <div className="space-y-1.5">
+                  <span className="text-slate-400 font-mono text-[10px] uppercase tracking-wider block">Semantic Reasoning Trace:</span>
+                  <div className="bg-slate-900/90 p-3 rounded-lg border border-purple-900/30 text-slate-200 text-xs leading-relaxed font-sans shadow-inner">
+                    <p className="text-slate-200">{aiMetadata.reasoning}</p>
+                  </div>
                 </div>
+
                 {Array.isArray(aiMetadata.keyEvidence) && aiMetadata.keyEvidence.length > 0 && (
-                  <div>
-                    <span className="text-slate-400 font-mono text-[10px] block">Key Evidence Signals:</span>
-                    <ul className="list-disc list-inside space-y-0.5 text-slate-400 text-[11px] pt-1">
+                  <div className="space-y-1.5">
+                    <span className="text-slate-400 font-mono text-[10px] uppercase tracking-wider block">Key Evidence Signals:</span>
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
                       {aiMetadata.keyEvidence.map((ev: string, idx: number) => (
-                        <li key={idx}>{ev}</li>
+                        <div key={idx} className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-md text-[11px] text-slate-300 font-mono">
+                          <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span>{ev}</span>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-[11px] text-slate-400 font-sans space-y-1">
-                <p className="font-mono text-[10px] text-slate-500">Execution Bypass Reason:</p>
-                <p className="bg-slate-900 p-2.5 rounded border border-slate-800 text-slate-300">
+              <div className="text-[11px] text-slate-400 font-sans space-y-1.5">
+                <p className="font-mono text-[10px] text-slate-500 uppercase tracking-wider">Execution Pipeline:</p>
+                <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-slate-300 text-xs">
                   {result.method === 'DETERMINISTIC'
-                    ? 'Processed exclusively by pure deterministic logic (Exact reference and amount match).'
-                    : 'Skipped AI resolution due to protected ambiguity safety gate or non-eligible exception state.'}
-                </p>
+                    ? '⚡ Exact 3-Way Match: Perfect parity across reference tokens, integer cent amounts ($0.00 variance), and posting dates.'
+                    : '🛡️ Safety Gated: Skipped secondary AI inference due to protected financial threshold or hard data mismatch.'}
+                </div>
               </div>
             )}
           </div>
