@@ -1,0 +1,14 @@
+{
+  "name": "ledgerguard-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix web run start",
+    "worker": "npm --prefix web run worker",
+    "typecheck": "npm --prefix web run typecheck",
+    "lint": "npm --prefix web run lint",
+    "check": "npm --prefix web run check"
+  }
+}
