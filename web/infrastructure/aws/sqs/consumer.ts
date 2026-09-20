@@ -48,8 +48,17 @@ export class SqsJobConsumer {
       messages = response.Messages ?? [];
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('[SqsJobConsumer] Error receiving messages from SQS:', errMsg);
-      return results;
+      if (errMsg.includes('Could not load credentials')) {
+        console.error(
+          '[SqsJobConsumer] ⚠️ AWS Credentials Not Found: Unable to authenticate with AWS.\n' +
+          '  👉 For local development with SQS: Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your .env, or run `aws configure`.\n' +
+          '  👉 Or run the Next.js app locally (`npm run dev`) where reconciliation operates in-memory when SQS is not configured.'
+        );
+      } else {
+        console.error('[SqsJobConsumer] Error receiving messages from SQS:', errMsg);
+      }
+      // Return empty results with a delay flag or let the loop backoff
+      throw err;
     }
 
     for (const msg of messages) {
@@ -137,13 +146,16 @@ export class SqsJobConsumer {
     console.log(`[SqsJobConsumer] Worker started. Polling queue: ${this.queueUrl}`);
 
     while (this.isRunning) {
+      let waitMs = pollIntervalMs;
       try {
         await this.pollAndProcessBatch(processor);
-      } catch (loopErr) {
-        console.error('[SqsJobConsumer] Error in polling cycle:', loopErr);
+      } catch {
+        // Back off on network or credential error
+        waitMs = 10000;
+        console.log('[SqsJobConsumer] Pausing 10s before next poll attempt...');
       }
       if (this.isRunning) {
-        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
       }
     }
 
