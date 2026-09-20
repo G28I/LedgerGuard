@@ -108,25 +108,41 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
 
   useEffect(() => {
     let ignore = false;
-    fetch(`/api/reconciliation/run/${runId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to load run details');
-        return res.json();
-      })
-      .then((json) => {
-        if (!ignore) {
-          setData(json);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!ignore) {
-          setError(err.message);
-          setLoading(false);
-        }
-      });
-    return () => { ignore = true; };
-  }, [runId]);
+
+    const fetchRun = () => {
+      fetch(`/api/reconciliation/run/${runId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error('Failed to load run details');
+          return res.json();
+        })
+        .then((json) => {
+          if (!ignore) {
+            setData(json);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (!ignore) {
+            setError(err.message);
+            setLoading(false);
+          }
+        });
+    };
+
+    fetchRun();
+
+    // Auto-poll if run is still in PENDING or PROCESSING state
+    const interval = setInterval(() => {
+      if (data?.status === 'PENDING' || data?.status === 'PROCESSING') {
+        fetchRun();
+      }
+    }, 1500);
+
+    return () => {
+      ignore = true;
+      clearInterval(interval);
+    };
+  }, [runId, data?.status]);
 
   if (loading) {
     return (
@@ -149,6 +165,53 @@ export default function ReconciliationResultsPage({ params }: { params: Promise<
           <Link href="/" className="text-xs text-indigo-400 hover:underline flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Return to Overview
           </Link>
+        </div>
+      </AppShell>
+    );
+  }
+
+  // Pending / Processing Async State Screen
+  if (data.status === 'PENDING' || data.status === 'PROCESSING') {
+    return (
+      <AppShell>
+        <div className="p-6 max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <h1 className="text-lg font-bold text-slate-100 font-mono">{data.runNumber}</h1>
+              <p className="text-xs text-slate-400">{data.batchName}</p>
+            </div>
+          </div>
+
+          <div className="p-8 bg-slate-900/80 border border-slate-800 rounded-xl text-center space-y-4 shadow-xl font-mono">
+            <div className="inline-flex p-3 bg-indigo-950/60 border border-indigo-800/60 rounded-full text-indigo-400">
+              <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-base font-bold text-slate-100">
+                {data.status === 'PENDING' ? 'Reconciliation Job Enqueued (SQS)' : 'Reconciliation Job In Progress...'}
+              </h2>
+              <p className="text-xs text-slate-400 font-sans max-w-md mx-auto">
+                {data.status === 'PENDING'
+                  ? 'Job is queued in Amazon SQS. An async worker will consume and process multi-source records.'
+                  : 'Worker is actively evaluating deterministic rules and OpenRouter AI ambiguity resolution.'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 text-xs text-slate-500 pt-2">
+              <span className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded text-slate-300">
+                Status: {data.status}
+              </span>
+              <span className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded text-slate-300">
+                Total Records: {data.totalRecords}
+              </span>
+            </div>
+          </div>
         </div>
       </AppShell>
     );

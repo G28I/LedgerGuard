@@ -35,13 +35,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const summaryResponse = await reconciliationService.executeRun(validationResult.data);
+    const summaryResponse = await reconciliationService.enqueueRun(validationResult.data);
 
     if (summaryResponse.status === 'FAILED') {
       return NextResponse.json(summaryResponse, { status: 500 });
     }
 
-    return NextResponse.json(summaryResponse, { status: 200 });
+    const statusCode = summaryResponse.status === 'PENDING' ? 202 : 200;
+    return NextResponse.json(summaryResponse, { status: statusCode });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown server error';
     return NextResponse.json(

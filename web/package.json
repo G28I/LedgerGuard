@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint",
+    "worker": "tsx scripts/sqs-worker.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

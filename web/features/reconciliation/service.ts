@@ -8,19 +8,26 @@ import { isAiEligible } from './safety';
 import { DEFAULT_RECONCILIATION_POLICY } from './types';
 import type { ReconciliationPolicyConfig, ExecuteRunParams, ReconciliationRunSummaryResponse } from './types';
 import { resolveAmbiguityWithAI } from '@/features/ai';
+import { isSqsAsyncConfigured } from '@/infrastructure/aws/config';
+import { getSqsJobProducer, type ReconciliationJobPayload } from '@/infrastructure/aws/sqs';
 import type { Prisma } from '@prisma/client';
 
 /**
  * Reconciliation Application Service Layer
- * Orchestrates synchronous end-to-end reconciliation runs across foundation layers.
+ * Orchestrates job creation, SQS queuing, asynchronous worker processing, and database persistence.
  * 
  * Boundary Flow:
- * Pure Domain Engine -> Application Orchestration -> Prisma/PostgreSQL Persistence -> API Response Contract
+ * SQS Queue / HTTP -> Application Orchestration -> Pure Domain Engine -> OpenRouter AI -> Prisma Persistence
  */
 export const reconciliationService = {
-  async executeRun(params: ExecuteRunParams = {}): Promise<ReconciliationRunSummaryResponse> {
+  /**
+   * Creates a ReconciliationRun in PENDING state and either dispatches to SQS or executes synchronously.
+   */
+  async enqueueRun(params: ExecuteRunParams = {}): Promise<ReconciliationRunSummaryResponse> {
     const seed = params.seed ?? DEFAULT_BENCHMARK_SEED;
     const batchName = params.batchName ?? `Benchmark Run (Seed ${seed})`;
+    const enableAI = params.enableAI ?? true;
+    const isBenchmark = params.isBenchmark ?? true;
 
     // 1. Generate / Load Synthetic Benchmark Dataset
     const dataset = generateSyntheticBenchmarkBatch({ seed, totalCases: 200 });
@@ -75,16 +82,120 @@ export const reconciliationService = {
       totalRecords: dataset.totalCases,
     });
 
-    try {
-      // 4. Transition Run to PROCESSING
-      await dbRepository.updateRunStatus(runRecord.id, 'PROCESSING');
+    const jobPayload: ReconciliationJobPayload = {
+      jobId: crypto.randomUUID(),
+      runId: runRecord.id,
+      runNumber,
+      seed,
+      batchName,
+      enableAI,
+      isBenchmark,
+      policyConfig: params.policyConfig,
+      enqueuedAt: new Date().toISOString(),
+    };
 
-      const policy: ReconciliationPolicyConfig = {
-        ...DEFAULT_RECONCILIATION_POLICY,
-        ...params.policyConfig,
+    // 4. If SQS is configured, dispatch to queue for async worker consumption
+    if (isSqsAsyncConfigured()) {
+      console.log(`[reconciliationService] Publishing Run ${runRecord.id} to AWS SQS...`);
+      const producer = getSqsJobProducer();
+      const publishResult = await producer.publishReconciliationJob(jobPayload);
+
+      if (!publishResult.success) {
+        console.warn(`[reconciliationService] SQS publish failed for Run ${runRecord.id}: ${publishResult.error}. Falling back to synchronous processing.`);
+        return this.processRunJob(jobPayload);
+      }
+
+      // Return initial PENDING state response contract for client polling
+      return {
+        runId: runRecord.id,
+        runNumber,
+        status: 'PENDING',
+        totalRecords: dataset.totalCases,
+        matchedCount: 0,
+        unresolvedCount: 0,
+        exceptionCount: 0,
+        aiCallCount: 0,
+        resolutionRate: 0,
+        durationMs: Date.now() - startTime,
+        throughputRecordsPerSec: 0,
+        startedAt: new Date(startTime).toISOString(),
+        errorMessage: null,
+        resultsSummary: [],
+        exceptionsSummary: [],
       };
+    }
 
-      // 5. Execute Pure Domain Engine (Side-Effect-Free)
+    // 5. Local Development Fallback: Execute in-process synchronously
+    return this.processRunJob(jobPayload);
+  },
+
+  /**
+   * Executes reconciliation for a designated ReconciliationRun with strict idempotency protection.
+   * Invoked either directly (local fallback) or by an SQS Worker consumer.
+   */
+  async processRunJob(payload: ReconciliationJobPayload): Promise<ReconciliationRunSummaryResponse> {
+    const startTime = Date.now();
+    const { runId, runNumber, seed, enableAI, policyConfig, isBenchmark = true } = payload;
+
+    // 1. Idempotency Check: Verify current run state in DB
+    const existingRun = await dbRepository.getRunDetails(runId);
+    if (!existingRun) {
+      const errorMsg = `ReconciliationRun ${runId} not found in database. Cannot process job.`;
+      console.error('[reconciliationService]', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    if (existingRun.status === 'COMPLETED') {
+      console.log(`[reconciliationService] Idempotency Guard: Run ${runId} is already COMPLETED. Skipping duplicate execution.`);
+      return {
+        runId: existingRun.id,
+        runNumber: existingRun.runNumber,
+        status: 'COMPLETED',
+        totalRecords: existingRun.totalRecords,
+        matchedCount: existingRun.matchedCount,
+        unresolvedCount: existingRun.unresolvedCount,
+        exceptionCount: existingRun.exceptionCount,
+        aiCallCount: existingRun.aiCallCount,
+        resolutionRate: existingRun.resolutionRate ?? 0,
+        accuracyPercentage: existingRun.accuracy,
+        accuracyRatio: existingRun.accuracy,
+        precision: existingRun.precision,
+        recall: existingRun.recall,
+        f1Score: existingRun.f1Score,
+        aiEvaluatedCount: existingRun.aiEvaluatedCount,
+        aiPromotedCount: existingRun.aiPromotedCount,
+        aiFalsePositiveCount: existingRun.aiFalsePositiveCount,
+        deterministicMatchedCount: existingRun.deterministicMatchedCount,
+        deterministicAccuracyRatio: existingRun.deterministicAccuracy,
+        durationMs: existingRun.durationMs ?? 0,
+        throughputRecordsPerSec: existingRun.durationMs && existingRun.durationMs > 0 ? (existingRun.totalRecords / (existingRun.durationMs / 1000)) : 0,
+        startedAt: existingRun.startedAt.toISOString(),
+        completedAt: existingRun.completedAt?.toISOString() ?? null,
+        errorMessage: null,
+        resultsSummary: existingRun.results.slice(0, 10).map((r) => ({
+          id: r.id,
+          status: r.status,
+          method: r.method,
+          reasonCode: r.reasonCode,
+          amountDeltaCents: r.amountDeltaCents,
+        })),
+        exceptionsSummary: [],
+      };
+    }
+
+    // 2. Transition Run State to PROCESSING
+    await dbRepository.updateRunStatus(runId, 'PROCESSING');
+
+    // 3. Load / Regenerate Source Dataset by Seed
+    const dataset = generateSyntheticBenchmarkBatch({ seed, totalCases: 200 });
+
+    const policy: ReconciliationPolicyConfig = {
+      ...DEFAULT_RECONCILIATION_POLICY,
+      ...policyConfig,
+    };
+
+    try {
+      // 4. Execute Pure Domain Engine (Side-Effect-Free)
       const decisions = runReconciliationEngine(
         dataset.sourceRecords.invoices,
         dataset.sourceRecords.bankTransactions,
@@ -95,8 +206,8 @@ export const reconciliationService = {
       let aiCallCount = 0;
       const aiMetadataMap = new Map<string, { model: string; reasoning: string; keyEvidence: string[]; promptDurationMs: number }>();
 
-      // 5b. AI Ambiguity Resolution (Downstream of Deterministic Engine)
-      if (params.enableAI) {
+      // 5. AI Ambiguity Resolution (Downstream of Deterministic Engine)
+      if (enableAI) {
         const candidatesMap = generateCandidatePairs(
           dataset.sourceRecords.invoices,
           dataset.sourceRecords.bankTransactions,
@@ -154,7 +265,6 @@ export const reconciliationService = {
             });
 
             if (aiResult.status === 'MATCHED' && aiResult.selectedBankTxId) {
-              // Promote to MATCHED with AI method
               decisions[i] = {
                 ...d,
                 status: 'MATCHED',
@@ -164,10 +274,9 @@ export const reconciliationService = {
                 bankTransactionId: aiResult.selectedBankTxId,
                 reasonCode: 'AI_ASSISTED_MATCH',
                 explanation: `AI-Assisted Resolution (${aiResult.actualModelUsed}): ${aiResult.reasoning}`,
-                exceptions: [], // Clear unresolved exception on successful AI match
+                exceptions: [],
               };
             } else {
-              // AI evaluated and confirmed UNRESOLVED or exception
               const updatedExceptions = [...d.exceptions];
               if (aiResult.exceptionType) {
                 updatedExceptions.push({
@@ -194,7 +303,7 @@ export const reconciliationService = {
       const endTime = Date.now();
       const durationMs = Math.max(1, endTime - startTime);
 
-      // 6. Derive Run Metrics Directly from Completed Decisions Set
+      // 6. Derive Run Metrics
       let matchedCount = 0;
       let unresolvedCount = 0;
       let totalExceptions = 0;
@@ -208,12 +317,7 @@ export const reconciliationService = {
         totalExceptions += d.exceptions.length;
       });
 
-      // 6. Benchmark Scoring (Offline Evaluation Boundary)
-      // Strict Boundary: Ground truth map is NOT accessed by runtime engine/service/API/AI.
-      // It is passed exclusively to scoreBenchmarkRun after reconciliation completes.
-      const isBenchmark = params.isBenchmark ?? true;
-
-      // Pass A (In-Memory Pure Deterministic Baseline Pass)
+      // 7. Benchmark Scoring (Strict Offline Airgap)
       const deterministicDecisions = runReconciliationEngine(
         dataset.sourceRecords.invoices,
         dataset.sourceRecords.bankTransactions,
@@ -222,7 +326,6 @@ export const reconciliationService = {
       );
       const detScore = scoreBenchmarkRun(deterministicDecisions, dataset.groundTruthMap);
 
-      // Pass B (AI-Enabled Pipeline Pass - Scored Offline)
       const benchmarkScore = scoreBenchmarkRun(decisions, dataset.groundTruthMap, {
         aiEvaluatedInvoiceIds: new Set(aiMetadataMap.keys()),
       });
@@ -230,7 +333,7 @@ export const reconciliationService = {
       const resolutionRate = Number((matchedCount / dataset.totalCases).toFixed(4));
       const throughputRecordsPerSec = Number((dataset.totalCases / (durationMs / 1000)).toFixed(2));
 
-      // 7. Atomic Transaction Persistence (Results & Exceptions)
+      // 8. Atomic Transaction Persistence
       const resultsToPersist = decisions.map((d) => {
         const aiMeta = d.invoiceId ? aiMetadataMap.get(d.invoiceId) : undefined;
         const aiMetadataJson = aiMeta
@@ -238,7 +341,7 @@ export const reconciliationService = {
           : undefined;
 
         return {
-          runId: runRecord.id,
+          runId,
           invoiceId: d.invoiceId,
           bankTransactionId: d.bankTransactionId,
           ledgerEntryId: d.ledgerEntryId,
@@ -263,14 +366,14 @@ export const reconciliationService = {
 
       const persistedResults = await dbRepository.persistRunResultsAndExceptionsTransaction(resultsToPersist);
 
-      // 8. Complete Run with Materialized Summaries (All metrics stored as decimal ratios e.g. 0.925)
-      const completedRun = await dbRepository.completeRun(runRecord.id, {
+      // 9. Complete Run Record
+      const completedRun = await dbRepository.completeRun(runId, {
         matchedCount,
         unresolvedCount,
         exceptionCount: totalExceptions,
         aiCallCount,
-        accuracy: benchmarkScore.accuracy, // Normalized ratio e.g. 0.925
-        resolutionRate, // Normalized ratio e.g. 0.60
+        accuracy: benchmarkScore.accuracy,
+        resolutionRate,
         durationMs,
         status: 'COMPLETED',
         isBenchmark,
@@ -278,13 +381,12 @@ export const reconciliationService = {
         aiPromotedCount: benchmarkScore.aiPromotedCount,
         aiFalsePositiveCount: benchmarkScore.aiFalsePositiveCount,
         deterministicMatchedCount: detScore.matchedCount,
-        deterministicAccuracy: detScore.accuracy, // Normalized ratio e.g. 0.925
-        precision: benchmarkScore.precision, // Ratio e.g. 1.0
-        recall: benchmarkScore.recall, // Ratio e.g. 1.0
-        f1Score: benchmarkScore.f1Score, // Ratio e.g. 1.0
+        deterministicAccuracy: detScore.accuracy,
+        precision: benchmarkScore.precision,
+        recall: benchmarkScore.recall,
+        f1Score: benchmarkScore.f1Score,
       });
 
-      // 9. Return Typed Summary Response Contract
       const resultsSummary = persistedResults.slice(0, 10).map((r) => ({
         id: r.id ?? '',
         status: r.status,
@@ -294,7 +396,7 @@ export const reconciliationService = {
       }));
 
       return {
-        runId: runRecord.id,
+        runId,
         runNumber: completedRun?.runNumber ?? runNumber,
         status: 'COMPLETED',
         totalRecords: dataset.totalCases,
@@ -323,17 +425,16 @@ export const reconciliationService = {
       };
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error(`[reconciliationService] Run ${runRecord.id} execution failed:`, errorMessage);
+      console.error(`[reconciliationService] Run ${runId} execution failed:`, errorMessage);
 
-      // Best-effort FAILED state update with server-side logging if database fails
       try {
-        await dbRepository.updateRunStatus(runRecord.id, 'FAILED');
+        await dbRepository.updateRunStatus(runId, 'FAILED');
       } catch (dbErr) {
-        console.error(`[reconciliationService] Server-side log: Failed to mark run ${runRecord.id} as FAILED:`, dbErr);
+        console.error(`[reconciliationService] Server-side log: Failed to mark run ${runId} as FAILED:`, dbErr);
       }
 
       return {
-        runId: runRecord.id,
+        runId,
         runNumber,
         status: 'FAILED',
         totalRecords: dataset.totalCases,
@@ -350,5 +451,12 @@ export const reconciliationService = {
         exceptionsSummary: [],
       };
     }
+  },
+
+  /**
+   * Synchronous convenience wrapper for benchmarks and test suites.
+   */
+  async executeRun(params: ExecuteRunParams = {}): Promise<ReconciliationRunSummaryResponse> {
+    return this.enqueueRun(params);
   },
 };
