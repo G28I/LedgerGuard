@@ -7,6 +7,12 @@ const envSchema = z.object({
   MOCK_OPENROUTER: z.string().default('false'),
   NEXT_PUBLIC_APP_URL: z.string().default('http://localhost:3000'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+
+  // AWS Infrastructure Configuration (Optional in local development)
+  AWS_REGION: z.string().min(1).default('us-east-1'),
+  AWS_SQS_RECONCILIATION_QUEUE_URL: z.string().url().optional(),
+  AWS_S3_REPORT_BUCKET: z.string().min(1).optional(),
+  AWS_SECRETS_MANAGER_SECRET_ID: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -19,6 +25,10 @@ function validateEnv(): Env {
     MOCK_OPENROUTER: process.env.MOCK_OPENROUTER,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,
+    AWS_REGION: process.env.AWS_REGION,
+    AWS_SQS_RECONCILIATION_QUEUE_URL: process.env.AWS_SQS_RECONCILIATION_QUEUE_URL,
+    AWS_S3_REPORT_BUCKET: process.env.AWS_S3_REPORT_BUCKET,
+    AWS_SECRETS_MANAGER_SECRET_ID: process.env.AWS_SECRETS_MANAGER_SECRET_ID,
   });
 
   if (!result.success) {
